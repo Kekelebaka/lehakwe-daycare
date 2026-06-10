@@ -1,0 +1,19 @@
+name = "lehakwe-email-worker"
+main = "src/index.ts"
+compatibility_date = "2025-06-09"
+account_id = "c63d3d6d8c17db7487ab40b81d5e29d1"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "lehakwe-db"
+database_id = "PLACEHOLDER_DATABASE_ID"
+
+[[r2_buckets]]
+binding = "EMAIL_STORE"
+bucket_name = "lehakwe-emails"
+
+[vars]
+FORWARD_EMAILS = "person1@example.com,person2@example.com"
+AUTO_REPLY_ENABLED = "true"
+SENDING_DOMAIN = "lehakwedaycare.co.za"
+ALLOWED_ORIGIN = "https://mail.lehakwedaycare.co.za"
