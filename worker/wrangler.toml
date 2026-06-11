@@ -13,7 +13,7 @@ binding = "EMAIL_STORE"
 bucket_name = "lehakwe-emails"
 
 [vars]
-FORWARD_EMAILS = "person1@example.com,person2@example.com"
+FORWARD_EMAILS = "kekelebaka@outlook.com,chiefops26@gmail.com"
 AUTO_REPLY_ENABLED = "true"
 SENDING_DOMAIN = "lehakwedaycare.co.za"
 ALLOWED_ORIGIN = "https://mail.lehakwedaycare.co.za"
