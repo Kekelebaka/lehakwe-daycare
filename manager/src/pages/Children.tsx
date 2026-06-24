@@ -21,6 +21,9 @@ export default function Children() {
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [qrChild, setQrChild] = useState<any | null>(null);
+
+  const PARENT_PORTAL_BASE = 'https://app.lehakwedaycare.co.za/parent';
 
   const loadData = () => {
     setLoading(true);
@@ -286,6 +289,45 @@ export default function Children() {
         </div>
       )}
 
+      {/* ── QR Code modal ── */}
+      {qrChild && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+          zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+        }}>
+          <div style={{
+            background: 'white', borderRadius: 16, padding: 32,
+            width: '100%', maxWidth: 400, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', textAlign: 'center',
+          }}>
+            <h3 style={{ fontWeight: 700, marginBottom: 4 }}>📱 Parent Portal QR Code</h3>
+            <p style={{ fontSize: '0.8rem', color: '#6B7280', marginBottom: 16 }}>Scan to view {qrChild.full_name}'s portal</p>
+            <div style={{ display: 'inline-block', padding: 12, background: 'white', borderRadius: 8, border: '1px solid #E5E7EB' }}>
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${PARENT_PORTAL_BASE}/${qrChild.child_id}`)}&bgcolor=FFFFFF&color=0B5FB3`}
+                alt={`QR for ${qrChild.full_name}`}
+                width={200} height={200}
+                style={{ display: 'block' }}
+              />
+            </div>
+            <div style={{ marginTop: 12, padding: '8px 12px', background: '#F3F4F6', borderRadius: 6, fontSize: '0.75rem', color: '#6B7280', wordBreak: 'break-all' }}>
+              {PARENT_PORTAL_BASE}/{qrChild.child_id}
+            </div>
+            <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>
+              <button onClick={() => {
+                navigator.clipboard?.writeText(`${PARENT_PORTAL_BASE}/${qrChild.child_id}`);
+              }} style={{
+                flex: 1, padding: 12, borderRadius: 10, border: '1px solid #E5E7EB',
+                background: 'white', cursor: 'pointer', fontWeight: 600,
+              }}>📋 Copy Link</button>
+              <button onClick={() => setQrChild(null)} style={{
+                flex: 1, padding: 12, borderRadius: 10, border: 'none',
+                background: '#0B5FB3', color: 'white', cursor: 'pointer', fontWeight: 600,
+              }}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Children table ── */}
       <div className="card">
         {loading ? (
@@ -322,6 +364,10 @@ export default function Children() {
                       padding: '4px 12px', borderRadius: 6, border: '1px solid #E5E7EB',
                       background: 'white', cursor: 'pointer', fontSize: '0.8rem', marginRight: 8,
                     }}>✏️ Edit</button>
+                    <button onClick={() => setQrChild(c)} style={{
+                      padding: '4px 12px', borderRadius: 6, border: '1px solid #BFDBFE',
+                      background: '#EFF6FF', cursor: 'pointer', fontSize: '0.8rem', marginRight: 8, color: '#0B5FB3',
+                    }}>📱 QR</button>
                     <button onClick={() => setConfirmDelete(c.child_id)} style={{
                       padding: '4px 12px', borderRadius: 6, border: '1px solid #FECACA',
                       background: '#FEF2F2', cursor: 'pointer', fontSize: '0.8rem', color: '#DC2626',
