@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#1A3D7C"/>
+  <path d="M256 72 L424 148 L424 284 Q424 388 256 456 Q88 388 88 284 L88 148 Z"
+        fill="#F59E0B" opacity="0.95"/>
+  <path d="M256 120 L392 184 L392 284 Q392 368 256 424 Q120 368 120 284 L120 184 Z"
+        fill="#1A3D7C"/>
+  <text x="256" y="310" text-anchor="middle"
+        font-size="160" font-family="system-ui,sans-serif">🛡️</text>
+  <text x="256" y="200" text-anchor="middle"
+        font-size="56" font-weight="900" fill="#F59E0B"
+        font-family="system-ui,sans-serif">L</text>
+</svg>

@@ -2,12 +2,40 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Lehakwe Daycare — Staff Inbox</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌻</text></svg>" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Lehakwe Daycare Manager</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#1A3D7C" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Lehakwe" />
+  <link rel="apple-touch-icon" href="/icon.svg" />
+
+  <!-- SEO -->
+  <meta name="description" content="Staff management app for Lehakwe Daycare" />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: #F8FAFC; }
+    #root { height: 100%; }
+  </style>
 </head>
 <body>
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
+  <script>
+    if ('serviceWorker' in navigator && location.hostname !== 'localhost') {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(r => console.log('[SW] Registered:', r.scope))
+          .catch(e => console.warn('[SW] Registration failed:', e));
+      });
+    }
+  </script>
 </body>
 </html>

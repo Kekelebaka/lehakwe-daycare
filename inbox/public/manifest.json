@@ -1,0 +1,28 @@
+{
+  "name": "Lehakwe Daycare Manager",
+  "short_name": "Lehakwe",
+  "description": "Official management app for Lehakwe Daycare staff",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#1A3D7C",
+  "theme_color": "#1A3D7C",
+  "orientation": "portrait-primary",
+  "lang": "en-ZA",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Inbox",
+      "url": "/?tab=inbox",
+      "description": "View parent messages"
+    }
+  ]
+}
