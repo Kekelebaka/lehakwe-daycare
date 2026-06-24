@@ -36,7 +36,7 @@ export async function parseIncomingEmail(message: {
         return merged;
       }, new Uint8Array(0))
     );
-    text = extractPlainText(raw);
+    text = extractBody(raw);
   } catch {
     text = '[Could not extract email body]';
   }
@@ -44,44 +44,96 @@ export async function parseIncomingEmail(message: {
   return { from: fromHeader, from_name: fromName || fromEmail, to: toHeader, subject, text };
 }
 
-/** Extract plain text from raw MIME email content */
-function extractPlainText(raw: string): string {
-  // Simple MIME parser: look for text/plain part
-  const boundaryMatch = raw.match(/boundary="([^"]+)"/i);
-  if (boundaryMatch) {
-    const boundary = boundaryMatch[1];
-    const parts = raw.split(`--${boundary}`);
-    for (const part of parts) {
-      if (part.includes('text/plain') && !part.includes('text/html')) {
-        const bodyStart = part.indexOf('\n\n');
-        if (bodyStart >= 0) {
-          const body = part.slice(bodyStart + 2).trim();
-          // Decode quoted-printable
-          return decodeQuotedPrintable(body);
-        }
-      }
-    }
-    // Fallback: return the first part after headers
-    for (const part of parts) {
-      const bodyStart = part.indexOf('\n\n');
-      if (bodyStart >= 0) {
-        return part.slice(bodyStart + 2).trim();
-      }
+/**
+ * Extract the email body from raw MIME content.
+ * Handles: multipart/alternative, multipart/mixed, simple text.
+ */
+function extractBody(raw: string): string {
+  // First, split off headers from body
+  const headerBodySplit = raw.indexOf('\r\n\r\n');
+  const headerSection = headerBodySplit >= 0 ? raw.slice(0, headerBodySplit) : '';
+  const bodySection = headerBodySplit >= 0 ? raw.slice(headerBodySplit + 4) : raw;
+
+  // Check for multipart
+  const contentType = headerSection.match(/content-type:\s*([^\s;]+)/i);
+  const isMultipart = contentType && contentType[1].toLowerCase().startsWith('multipart');
+
+  if (!isMultipart) {
+    // Simple email — body is just text
+    return cleanText(bodySection);
+  }
+
+  // Find boundary
+  const boundaryMatch = headerSection.match(/boundary="?([^";\r\n]+)"?/i);
+  if (!boundaryMatch) {
+    return cleanText(bodySection);
+  }
+
+  const boundary = boundaryMatch[1];
+  // Split by boundary — raw contains lines like "--boundary\r\n"
+  const parts = bodySection.split(new RegExp(`--${escapeRegex(boundary)}`, 'i'));
+
+  // Find best text part: prefer text/plain, fallback to text/html, fallback to first part
+  let plainText = '';
+  let htmlText = '';
+  let anyText = '';
+
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (!trimmed || trimmed === '--') continue;
+
+    // Each part has its own headers + body
+    const partSplit = trimmed.indexOf('\r\n\r\n');
+    if (partSplit < 0) continue;
+
+    const partHeaders = trimmed.slice(0, partSplit).toLowerCase();
+    const partBody = trimmed.slice(partSplit + 4);
+
+    // Skip MIME boundary markers
+    if (partHeaders.startsWith('--') || partHeaders.includes('content-transfer-encoding: 7bit') && !partHeaders.includes('content-type')) continue;
+
+    if (partHeaders.includes('text/plain')) {
+      plainText = cleanText(partBody);
+    } else if (partHeaders.includes('text/html')) {
+      htmlText = stripHtml(partBody);
+    } else if (!anyText) {
+      anyText = cleanText(partBody);
     }
   }
-  // No MIME — try to find body after headers
-  const bodyStart = raw.indexOf('\n\n');
-  if (bodyStart >= 0) {
-    return raw.slice(bodyStart + 2).trim();
-  }
-  return raw;
+
+  return plainText || htmlText || anyText || '[Empty email]';
 }
 
-/** Basic quoted-printable decoder */
-function decodeQuotedPrintable(str: string): string {
-  return str
-    .replace(/=\r?\n/g, '')
-    .replace(/=([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+/** Strip HTML tags and decode entities */
+function stripHtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<\/tr>/gi, '\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/** Clean up text content */
+function cleanText(text: string): string {
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .trim();
+}
+
+/** Escape regex special chars */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /** Build the forwarded email body for staff personal inboxes */
