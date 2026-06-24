@@ -412,6 +412,252 @@ export default {
         return Response.json({ ok: true, data: { message_id: db.uuid(), sent: false, note: 'Status updated. Configure MailChannels to enable outbound email from HTTP handlers.' } }, { headers: corsHeaders });
       }
 
+      // ── GET /api/attendance?date=YYYY-MM-DD ──
+      if (path === '/api/attendance' && request.method === 'GET') {
+        const date = url.searchParams.get('date') || new Date().toISOString().slice(0, 10);
+        const result = await env.DB.prepare(`
+          SELECT a.*, c.full_name AS child_name
+          FROM attendance_records a
+          JOIN children c ON a.child_id = c.child_id
+          WHERE a.date = ?
+          ORDER BY c.full_name ASC
+        `).bind(date).all();
+        return Response.json({ ok: true, data: result.results }, { headers: corsHeaders });
+      }
+
+      // ── POST /api/attendance ──
+      if (path === '/api/attendance' && request.method === 'POST') {
+        const body = await request.json() as any;
+        const id = crypto.randomUUID();
+        await env.DB.prepare(`
+          INSERT INTO attendance_records (id, child_id, date, check_in_time, check_out_time, status, absence_reason, recorded_by)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(id, body.child_id, body.date, body.check_in_time || null, body.check_out_time || null,
+          body.status || 'present', body.absence_reason || null, body.recorded_by || null).run();
+        return Response.json({ ok: true, data: { id } }, { headers: corsHeaders });
+      }
+
+      // ── PUT /api/attendance/:id ──
+      const attMatch = path.match(/^\/api\/attendance\/(.+)$/);
+      if (attMatch && request.method === 'PUT') {
+        const body = await request.json() as any;
+        const fields: string[] = [];
+        const vals: any[] = [];
+        if (body.check_in_time !== undefined) { fields.push('check_in_time = ?'); vals.push(body.check_in_time); }
+        if (body.check_out_time !== undefined) { fields.push('check_out_time = ?'); vals.push(body.check_out_time); }
+        if (body.status !== undefined) { fields.push('status = ?'); vals.push(body.status); }
+        if (body.absence_reason !== undefined) { fields.push('absence_reason = ?'); vals.push(body.absence_reason); }
+        if (fields.length === 0) return Response.json({ ok: false, error: 'No fields to update' }, { status: 400, headers: corsHeaders });
+        vals.push(attMatch[1]);
+        await env.DB.prepare(`UPDATE attendance_records SET ${fields.join(', ')} WHERE id = ?`).bind(...vals).run();
+        return Response.json({ ok: true }, { headers: corsHeaders });
+      }
+
+      // ── GET /api/attendance/summary?month=N&year=N ──
+      if (path === '/api/attendance/summary' && request.method === 'GET') {
+        const month = parseInt(url.searchParams.get('month') || String(new Date().getMonth() + 1));
+        const year = parseInt(url.searchParams.get('year') || String(new Date().getFullYear()));
+        const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+        const endMonth = month === 12 ? 1 : month + 1;
+        const endYear = month === 12 ? year + 1 : year;
+        const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+        const result = await env.DB.prepare(`
+          SELECT c.child_id, c.full_name,
+            COUNT(CASE WHEN a.status = 'present' THEN 1 END) AS days_present,
+            COUNT(CASE WHEN a.status = 'absent' THEN 1 END) AS days_absent,
+            COUNT(CASE WHEN a.status = 'late' THEN 1 END) AS days_late,
+            COUNT(*) AS total_records
+          FROM children c
+          LEFT JOIN attendance_records a ON c.child_id = a.child_id AND a.date >= ? AND a.date < ?
+          WHERE c.status = 'active'
+          GROUP BY c.child_id
+          ORDER BY c.full_name ASC
+        `).bind(startDate, endDate).all();
+        return Response.json({ ok: true, data: result.results }, { headers: corsHeaders });
+      }
+
+      // ── GET /api/fees/schedules ──
+      if (path === '/api/fees/schedules' && request.method === 'GET') {
+        const result = await env.DB.prepare('SELECT * FROM fee_schedules WHERE active = 1 ORDER BY monthly_fee ASC').all();
+        return Response.json({ ok: true, data: result.results }, { headers: corsHeaders });
+      }
+
+      // ── POST /api/fees/schedules ──
+      if (path === '/api/fees/schedules' && request.method === 'POST') {
+        const body = await request.json() as any;
+        const id = crypto.randomUUID();
+        await env.DB.prepare('INSERT INTO fee_schedules (schedule_id, age_group, monthly_fee, description) VALUES (?, ?, ?, ?)')
+          .bind(id, body.age_group, body.monthly_fee, body.description || null).run();
+        return Response.json({ ok: true, data: { id } }, { headers: corsHeaders });
+      }
+
+      // ── GET /api/fees/records?month=N&year=N ──
+      if (path === '/api/fees/records' && request.method === 'GET') {
+        const month = url.searchParams.get('month');
+        const year = url.searchParams.get('year');
+        let sql = `SELECT f.*, c.full_name AS child_name FROM fee_records f JOIN children c ON f.child_id = c.child_id`;
+        const params: any[] = [];
+        if (month && year) { sql += ` WHERE f.month = ? AND f.year = ?`; params.push(parseInt(month), parseInt(year)); }
+        sql += ` ORDER BY f.year DESC, f.month DESC, c.full_name ASC`;
+        const result = params.length ? await env.DB.prepare(sql).bind(...params).all() : await env.DB.prepare(sql).all();
+        return Response.json({ ok: true, data: result.results }, { headers: corsHeaders });
+      }
+
+      // ── POST /api/fees/records ──
+      if (path === '/api/fees/records' && request.method === 'POST') {
+        const body = await request.json() as any;
+        const id = crypto.randomUUID();
+        await env.DB.prepare(`
+          INSERT INTO fee_records (fee_id, child_id, schedule_id, month, year, amount_due, amount_paid, payment_method, payment_date, status, notes)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(id, body.child_id, body.schedule_id || null, body.month, body.year,
+          body.amount_due, body.amount_paid || 0, body.payment_method || null,
+          body.payment_date || null, body.status || 'pending', body.notes || null).run();
+        return Response.json({ ok: true, data: { id } }, { headers: corsHeaders });
+      }
+
+      // ── PUT /api/fees/records/:id ──
+      const feeMatch = path.match(/^\/api\/fees\/records\/(.+)$/);
+      if (feeMatch && request.method === 'PUT') {
+        const body = await request.json() as any;
+        const fields: string[] = [];
+        const vals: any[] = [];
+        if (body.amount_paid !== undefined) { fields.push('amount_paid = ?'); vals.push(body.amount_paid); }
+        if (body.payment_method !== undefined) { fields.push('payment_method = ?'); vals.push(body.payment_method); }
+        if (body.payment_date !== undefined) { fields.push('payment_date = ?'); vals.push(body.payment_date); }
+        if (body.status !== undefined) { fields.push('status = ?'); vals.push(body.status); }
+        if (body.notes !== undefined) { fields.push('notes = ?'); vals.push(body.notes); }
+        if (fields.length === 0) return Response.json({ ok: false, error: 'No fields' }, { status: 400, headers: corsHeaders });
+        vals.push(feeMatch[1]);
+        await env.DB.prepare(`UPDATE fee_records SET ${fields.join(', ')} WHERE fee_id = ?`).bind(...vals).run();
+        return Response.json({ ok: true }, { headers: corsHeaders });
+      }
+
+      // ── GET /api/notices ──
+      if (path === '/api/notices' && request.method === 'GET') {
+        const result = await env.DB.prepare('SELECT * FROM notices ORDER BY pinned DESC, created_at DESC').all();
+        return Response.json({ ok: true, data: result.results }, { headers: corsHeaders });
+      }
+
+      // ── POST /api/notices ──
+      if (path === '/api/notices' && request.method === 'POST') {
+        const body = await request.json() as any;
+        const id = crypto.randomUUID();
+        await env.DB.prepare(`
+          INSERT INTO notices (notice_id, title, content, category, pinned, published, expires_at, author_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(id, body.title, body.content, body.category || 'general',
+          body.pinned ? 1 : 0, body.published ? 1 : 0, body.expires_at || null, body.author_id || null).run();
+        return Response.json({ ok: true, data: { id } }, { headers: corsHeaders });
+      }
+
+      // ── PUT /api/notices/:id ──
+      const noticeMatch = path.match(/^\/api\/notices\/(.+)$/);
+      if (noticeMatch && request.method === 'PUT') {
+        const body = await request.json() as any;
+        const fields: string[] = [];
+        const vals: any[] = [];
+        if (body.title !== undefined) { fields.push('title = ?'); vals.push(body.title); }
+        if (body.content !== undefined) { fields.push('content = ?'); vals.push(body.content); }
+        if (body.category !== undefined) { fields.push('category = ?'); vals.push(body.category); }
+        if (body.pinned !== undefined) { fields.push('pinned = ?'); vals.push(body.pinned ? 1 : 0); }
+        if (body.published !== undefined) { fields.push('published = ?'); vals.push(body.published ? 1 : 0); }
+        if (body.expires_at !== undefined) { fields.push('expires_at = ?'); vals.push(body.expires_at); }
+        fields.push("updated_at = datetime('now')");
+        if (fields.length === 1) return Response.json({ ok: false, error: 'No fields' }, { status: 400, headers: corsHeaders });
+        vals.push(noticeMatch[1]);
+        await env.DB.prepare(`UPDATE notices SET ${fields.join(', ')} WHERE notice_id = ?`).bind(...vals).run();
+        return Response.json({ ok: true }, { headers: corsHeaders });
+      }
+
+      // ── DELETE /api/notices/:id ──
+      if (noticeMatch && request.method === 'DELETE') {
+        await env.DB.prepare('DELETE FROM notices WHERE notice_id = ?').bind(noticeMatch[1]).run();
+        return Response.json({ ok: true }, { headers: corsHeaders });
+      }
+
+      // ── GET /api/milestones?child_id=X ──
+      if (path === '/api/milestones' && request.method === 'GET') {
+        const childId = url.searchParams.get('child_id');
+        let sql = 'SELECT m.*, c.full_name AS child_name FROM developmental_milestones m JOIN children c ON m.child_id = c.child_id';
+        const params: any[] = [];
+        if (childId) { sql += ' WHERE m.child_id = ?'; params.push(childId); }
+        sql += ' ORDER BY c.full_name, m.milestone_type';
+        const result = params.length ? await env.DB.prepare(sql).bind(...params).all() : await env.DB.prepare(sql).all();
+        return Response.json({ ok: true, data: result.results }, { headers: corsHeaders });
+      }
+
+      // ── POST /api/milestones ──
+      if (path === '/api/milestones' && request.method === 'POST') {
+        const body = await request.json() as any;
+        const id = crypto.randomUUID();
+        await env.DB.prepare(`
+          INSERT INTO developmental_milestones (milestone_id, child_id, milestone_type, status, achieved_date, notes, assessed_by)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).bind(id, body.child_id, body.milestone_type, body.status || 'pending',
+          body.achieved_date || null, body.notes || null, body.assessed_by || null).run();
+        return Response.json({ ok: true, data: { id } }, { headers: corsHeaders });
+      }
+
+      // ── PUT /api/milestones/:id ──
+      const mileMatch = path.match(/^\/api\/milestones\/(.+)$/);
+      if (mileMatch && request.method === 'PUT') {
+        const body = await request.json() as any;
+        const fields: string[] = [];
+        const vals: any[] = [];
+        if (body.status !== undefined) { fields.push('status = ?'); vals.push(body.status); }
+        if (body.achieved_date !== undefined) { fields.push('achieved_date = ?'); vals.push(body.achieved_date); }
+        if (body.notes !== undefined) { fields.push('notes = ?'); vals.push(body.notes); }
+        if (body.assessed_by !== undefined) { fields.push('assessed_by = ?'); vals.push(body.assessed_by); }
+        if (fields.length === 0) return Response.json({ ok: false, error: 'No fields' }, { status: 400, headers: corsHeaders });
+        vals.push(mileMatch[1]);
+        await env.DB.prepare(`UPDATE developmental_milestones SET ${fields.join(', ')} WHERE milestone_id = ?`).bind(...vals).run();
+        return Response.json({ ok: true }, { headers: corsHeaders });
+      }
+
+      // ── GET /api/waitlist ──
+      if (path === '/api/waitlist' && request.method === 'GET') {
+        const result = await env.DB.prepare('SELECT * FROM waitlist ORDER BY position ASC, created_at ASC').all();
+        return Response.json({ ok: true, data: result.results }, { headers: corsHeaders });
+      }
+
+      // ── POST /api/waitlist ──
+      if (path === '/api/waitlist' && request.method === 'POST') {
+        const body = await request.json() as any;
+        const id = crypto.randomUUID();
+        const maxPos = await env.DB.prepare('SELECT MAX(position) AS max_pos FROM waitlist').first<{ max_pos: number }>();
+        const position = (maxPos?.max_pos || 0) + 1;
+        await env.DB.prepare(`
+          INSERT INTO waitlist (waitlist_id, child_name, parent_name, parent_phone, parent_email, age_group, preferred_start_date, status, notes, position)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(id, body.child_name, body.parent_name || null, body.parent_phone || null,
+          body.parent_email || null, body.age_group || null, body.preferred_start_date || null,
+          body.status || 'waiting', body.notes || null, position).run();
+        return Response.json({ ok: true, data: { id, position } }, { headers: corsHeaders });
+      }
+
+      // ── PUT /api/waitlist/:id ──
+      const waitMatch = path.match(/^\/api\/waitlist\/(.+)$/);
+      if (waitMatch && request.method === 'PUT') {
+        const body = await request.json() as any;
+        const fields: string[] = [];
+        const vals: any[] = [];
+        if (body.status !== undefined) { fields.push('status = ?'); vals.push(body.status); }
+        if (body.position !== undefined) { fields.push('position = ?'); vals.push(body.position); }
+        if (body.notes !== undefined) { fields.push('notes = ?'); vals.push(body.notes); }
+        fields.push("updated_at = datetime('now')");
+        if (fields.length === 1) return Response.json({ ok: false, error: 'No fields' }, { status: 400, headers: corsHeaders });
+        vals.push(waitMatch[1]);
+        await env.DB.prepare(`UPDATE waitlist SET ${fields.join(', ')} WHERE waitlist_id = ?`).bind(...vals).run();
+        return Response.json({ ok: true }, { headers: corsHeaders });
+      }
+
+      // ── DELETE /api/waitlist/:id ──
+      if (waitMatch && request.method === 'DELETE') {
+        await env.DB.prepare('DELETE FROM waitlist WHERE waitlist_id = ?').bind(waitMatch[1]).run();
+        return Response.json({ ok: true }, { headers: corsHeaders });
+      }
+
       return Response.json({ ok: false, error: 'Endpoint not found' }, { status: 404, headers: corsHeaders });
 
     } catch (err) {

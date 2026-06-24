@@ -67,4 +67,43 @@ export const api = {
 
   // Audit
   getAuditLogs: () => request<any[]>('/audit'),
+
+  // Attendance
+  getAttendance: (date: string) => request<any[]>(`/attendance?date=${date}`),
+  createAttendance: (data: any) => request<any>('/attendance', { method: 'POST', body: JSON.stringify(data) }),
+  updateAttendance: (id: string, data: any) => request<any>(`/attendance/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  getAttendanceSummary: (month: number, year: number) => request<any[]>(`/attendance/summary?month=${month}&year=${year}`),
+
+  // Fees
+  getFeeSchedules: () => request<any[]>('/fees/schedules'),
+  createFeeSchedule: (data: any) => request<any>('/fees/schedules', { method: 'POST', body: JSON.stringify(data) }),
+  getFeeRecords: (month?: number, year?: number) => {
+    const q = new URLSearchParams();
+    if (month) q.set('month', String(month));
+    if (year) q.set('year', String(year));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return request<any[]>(`/fees/records${qs}`);
+  },
+  createFeeRecord: (data: any) => request<any>('/fees/records', { method: 'POST', body: JSON.stringify(data) }),
+  updateFeeRecord: (id: string, data: any) => request<any>(`/fees/records/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  // Notices
+  getNotices: () => request<any[]>('/notices'),
+  createNotice: (data: any) => request<any>('/notices', { method: 'POST', body: JSON.stringify(data) }),
+  updateNotice: (id: string, data: any) => request<any>(`/notices/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteNotice: (id: string) => request<any>(`/notices/${id}`, { method: 'DELETE' }),
+
+  // Milestones
+  getMilestones: (childId?: string) => {
+    const q = childId ? `?child_id=${childId}` : '';
+    return request<any[]>(`/milestones${q}`);
+  },
+  createMilestone: (data: any) => request<any>('/milestones', { method: 'POST', body: JSON.stringify(data) }),
+  updateMilestone: (id: string, data: any) => request<any>(`/milestones/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  // Waitlist
+  getWaitlist: () => request<any[]>('/waitlist'),
+  createWaitlistEntry: (data: any) => request<any>('/waitlist', { method: 'POST', body: JSON.stringify(data) }),
+  updateWaitlistEntry: (id: string, data: any) => request<any>(`/waitlist/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteWaitlistEntry: (id: string) => request<any>(`/waitlist/${id}`, { method: 'DELETE' }),
 };

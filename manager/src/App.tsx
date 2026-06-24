@@ -10,13 +10,21 @@ import Parents from './pages/Parents';
 import Reports from './pages/Reports';
 import Documents from './pages/Documents';
 import Settings from './pages/Settings';
+import Attendance from './pages/Attendance';
+import Fees from './pages/Fees';
+import Notices from './pages/Notices';
+import Milestones from './pages/Milestones';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: '📊' },
   { path: '/inbox', label: 'Inbox', icon: '✉️' },
-  { path: '/payslips', label: 'Payslips', icon: '💰' },
-  { path: '/staff', label: 'Staff', icon: '👥' },
+  { path: '/attendance', label: 'Attendance', icon: '📋' },
   { path: '/children', label: 'Children', icon: '👶' },
+  { path: '/milestones', label: 'Milestones', icon: '🎯' },
+  { path: '/fees', label: 'Fees & Finance', icon: '💰' },
+  { path: '/notices', label: 'Notice Board', icon: '📢' },
+  { path: '/payslips', label: 'Payslips', icon: '💸' },
+  { path: '/staff', label: 'Staff', icon: '👥' },
   { path: '/parents', label: 'Parents', icon: '👨‍👩‍👧' },
   { path: '/reports', label: 'Reports', icon: '📑' },
   { path: '/documents', label: 'Documents', icon: '📁' },
@@ -225,9 +233,13 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/inbox" element={<Inbox />} />
+          <Route path="/attendance" element={<Attendance />} />
+          <Route path="/children" element={<Children />} />
+          <Route path="/milestones" element={<Milestones />} />
+          <Route path="/fees" element={<Fees />} />
+          <Route path="/notices" element={<Notices />} />
           <Route path="/payslips" element={<Payslips />} />
           <Route path="/staff" element={<Staff />} />
-          <Route path="/children" element={<Children />} />
           <Route path="/parents" element={<Parents />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/documents" element={<Documents />} />
