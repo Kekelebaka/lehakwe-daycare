@@ -11,20 +11,19 @@
 <meta property="og:type" content="website">
 <style>
   :root {
-    --amber: #F59E0B;
-    --amber-light: #FEF3C7;
-    --amber-dark: #D97706;
-    --green: #10B981;
-    --green-light: #D1FAE5;
-    --green-dark: #059669;
-    --stone: #78716C;
-    --stone-light: #F5F5F4;
-    --stone-dark: #292524;
-    --white: #FFFFFF;
+    --color-primary: #0B5FB3;
+    --color-primary-dark: #073B73;
+    --color-accent-teal: #16AFA3;
+    --color-accent-yellow: #FDBA24;
+    --color-accent-coral: #F87171;
+    --color-bg-soft: #F8FBFF;
+    --color-text: #111827;
+    --color-muted: #6B7280;
+    --color-white: #FFFFFF;
     --radius: 16px;
     --radius-sm: 10px;
-    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
-    --shadow-lg: 0 10px 25px rgba(0,0,0,0.08);
+    --shadow: 0 1px 3px rgba(11, 95, 179, 0.08), 0 1px 2px rgba(11, 95, 179, 0.06);
+    --shadow-lg: 0 10px 25px rgba(11, 95, 179, 0.1);
   }
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -54,16 +53,12 @@
   }
   .logo {
     font-size: 1.25rem; font-weight: 700;
-    color: var(--amber-dark);
-    display: flex; align-items: center; gap: 8px;
+    color: var(--color-primary-dark);
+    display: flex; align-items: center; gap: 12px;
     text-decoration: none;
   }
-  .logo-icon {
-    width: 36px; height: 36px;
-    background: var(--amber);
-    border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.2rem;
+  .logo img, .logo svg {
+    height: 44px; width: auto;
   }
   .nav-links { display: flex; gap: 28px; list-style: none; }
   .nav-links a {
@@ -86,7 +81,7 @@
 
   /* --- HERO --- */
   .hero {
-    background: linear-gradient(160deg, #FFFBEB 0%, #FEF3C7 40%, #ECFDF5 100%);
+    background: linear-gradient(160deg, var(--color-bg-soft) 0%, #E0F2FE 40%, #CCFBF1 100%);
     padding: 100px 24px 120px;
     text-align: center;
     position: relative;
@@ -126,11 +121,11 @@
     transition: all 0.2s;
     border: none; cursor: pointer;
   }
-  .btn-primary { background: var(--amber); color: white; }
-  .btn-primary:hover { background: var(--amber-dark); transform: translateY(-1px); box-shadow: var(--shadow-lg); }
-  .btn-outline { background: white; color: var(--stone-dark); border: 2px solid #E7E5E4; }
-  .btn-outline:hover { border-color: var(--amber); color: var(--amber-dark); }
-  .btn-wa { background: #25D366; color: white; }
+  .btn-primary { background: var(--color-primary); color: var(--color-white); }
+  .btn-primary:hover { background: var(--color-primary-dark); }
+  .btn-outline { background: var(--color-white); color: var(--color-text); border: 2px solid #E5E7EB; }
+  .btn-outline:hover { border-color: var(--color-primary); color: var(--color-primary); }
+  .btn-wa { background: #25D366; color: var(--color-white); }
   .btn-wa:hover { background: #1da851; transform: translateY(-1px); box-shadow: var(--shadow-lg); }
 
   /* --- SECTION HEADERS --- */
@@ -193,8 +188,8 @@
     display: flex; align-items: center; justify-content: center;
     font-size: 1.5rem; margin-bottom: 18px;
   }
-  .service-icon.amber { background: var(--amber-light); }
-  .service-icon.green { background: var(--green-light); }
+  .service-icon.amber { background: #FEF3C7; }
+  .service-icon.green { background: #CCFBF1; }
   .service-card h3 { font-size: 1.1rem; margin-bottom: 8px; }
   .service-card p { color: var(--stone); font-size: 0.95rem; }
 
@@ -217,7 +212,7 @@
   .hours-row .day { font-weight: 600; }
 
   /* --- CONTACT --- */
-  .contact { background: linear-gradient(160deg, #FFFBEB 0%, #FEF3C7 100%); }
+  .contact { background: linear-gradient(160deg, var(--color-bg-soft) 0%, #E0F2FE 100%); }
   .contact-grid {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 24px; margin-top: 40px;
@@ -239,17 +234,17 @@
 
   /* --- FOOTER --- */
   footer {
-    background: var(--stone-dark); color: #A8A29E;
+    background: var(--color-primary-dark); color: #94A3B8;
     padding: 48px 24px 32px;
     text-align: center;
   }
   footer .footer-logo {
     font-size: 1.2rem; font-weight: 700;
-    color: var(--amber); margin-bottom: 8px;
+    color: var(--color-accent-yellow); margin-bottom: 8px;
   }
   footer p { font-size: 0.875rem; margin-bottom: 4px; }
   footer .credit { margin-top: 24px; font-size: 0.8rem; }
-  footer .credit a { color: var(--amber); text-decoration: none; }
+  footer .credit a { color: var(--color-accent-teal); text-decoration: none; }
 
   /* --- RESPONSIVE --- */
   @media (max-width: 768px) {
@@ -272,8 +267,8 @@
 <nav>
   <div class="inner">
     <a href="#" class="logo">
-      <span class="logo-icon">🌻</span>
-      Lehakwe Daycare
+      <img src="https://i.imgur.com/0COuhlX.png" alt="Lehakwe Daycare Logo" style="height: 44px; width: auto;" />
+      <span>Lehakwe Daycare</span>
     </a>
     <ul class="nav-links">
       <li><a href="#about">About</a></li>
@@ -290,8 +285,8 @@
     <h1>Lehakwe Daycare</h1>
     <p class="subtitle">A safe, caring, and nurturing place for children to learn, play, and grow.</p>
     <div class="hero-buttons">
-      <a href="https://wa.me/27000000000" class="btn btn-wa" target="_blank" rel="noopener">💬 WhatsApp</a>
-      <a href="tel:+27000000000" class="btn btn-outline">📞 Call Us</a>
+      <a href="https://wa.me/27615491701" class="btn btn-wa" target="_blank" rel="noopener">💬 WhatsApp</a>
+      <a href="tel:+27615491701" class="btn btn-outline">📞 Call Us</a>
       <a href="mailto:info@lehakwedaycare.co.za" class="btn btn-primary">✉️ Email Us</a>
     </div>
   </div>
@@ -304,7 +299,7 @@
       <div>
         <p class="section-label">About Us</p>
         <h2 class="section-title">Where children feel safe, happy, and ready to learn</h2>
-        <p class="section-desc">At Lehakwe Daycare, we provide a caring and supportive environment where children are looked after with patience, love, and attention. Our goal is to give parents peace of mind while helping children feel safe, happy, and ready to learn.</p>
+        <p class="section-desc">At Lehakwe Daycare, we provide a caring and supportive environment for children aged 6 months to 4 years. We look after your little ones with patience, love, and attention, providing nutritious meals (breakfast, snack, and lunch) in a safe, play-based learning space. Our goal is to give parents peace of mind while helping children feel safe, happy, and ready to learn.</p>
         <div class="about-values">
           <div class="value-card"><span class="icon">🛡️</span> Safe Environment</div>
           <div class="value-card"><span class="icon">❤️</span> Loving Care</div>
@@ -321,25 +316,50 @@
     <p class="section-label">What We Offer</p>
     <h2 class="section-title">Services</h2>
     <div class="services-grid">
+    <div class="service-card">
+      <div class="service-icon amber">👶</div>
+      <h3>Babies, Toddlers & Grade R</h3>
+      <p>Quality care and early learning support for children from 6 months to 4 years old.</p>
+    </div>
+    <div class="service-card">
+      <div class="service-icon green">🍎</div>
+      <h3>Nutritious Meals</h3>
+      <p>We provide breakfast, a healthy mid-morning snack, and a warm lunch every day.</p>
+    </div>
+    <div class="service-card">
+      <div class="service-icon amber">🎯</div>
+      <h3>Play-Based Learning</h3>
+      <p>Structured activities that build creativity, coordination, and confidence through fun.</p>
+    </div>
+    <div class="service-card">
+      <div class="service-icon green">🛡️</div>
+      <h3>Safe & Secure</h3>
+      <p>A warm, nurturing, and highly supervised environment where young children thrive.</p>
+    </div>
+    </div>
+  </div>
+</section>
+
+<section id="requirements" style="background: var(--color-bg-soft);">
+  <div class="container" style="text-align:center;">
+    <p class="section-label">Before You Join</p>
+    <h2 class="section-title">Registration Requirements</h2>
+    <p class="section-desc" style="margin: 0 auto 32px auto;">To ensure the safety and compliance of our centre, please bring the following when registering:</p>
+    <div class="services-grid" style="max-width: 800px; margin: 0 auto;">
       <div class="service-card">
-        <div class="service-icon amber">👶</div>
-        <h3>Daycare & Supervision</h3>
-        <p>Full-day care and supervision in a safe, structured environment with dedicated caregivers.</p>
+        <div class="service-icon amber">📄</div>
+        <h3>Birth Certificate</h3>
+        <p>A certified copy of the child's birth certificate.</p>
       </div>
       <div class="service-card">
-        <div class="service-icon green">📖</div>
-        <h3>Early Childhood Learning</h3>
-        <p>Age-appropriate learning support to help children develop cognitive and social skills.</p>
+        <div class="service-icon green">💉</div>
+        <h3>Immunisation Card</h3>
+        <p>A clear copy of the child's up-to-date immunisation record.</p>
       </div>
       <div class="service-card">
-        <div class="service-icon amber">🎯</div>
-        <h3>Play-Based Activities</h3>
-        <p>Structured play that builds creativity, coordination, and confidence through fun.</p>
-      </div>
-      <div class="service-card">
-        <div class="service-icon green">🏠</div>
-        <h3>Supportive Environment</h3>
-        <p>A warm, nurturing space where young children feel at home and ready to explore.</p>
+        <div class="service-icon amber">🪪</div>
+        <h3>Parent/Guardian ID</h3>
+        <p>A certified copy of the parent or legal guardian's ID document.</p>
       </div>
     </div>
   </div>
@@ -359,20 +379,19 @@
 </section>
 
 <section class="contact" id="contact">
-  <div class="container" style="text-align:center;">
     <p class="section-label">Get In Touch</p>
     <h2 class="section-title">Contact Lehakwe Daycare</h2>
     <p class="section-desc" style="margin:0 auto;">We'd love to hear from you. Reach out through any of the channels below.</p>
     <div class="contact-grid">
-      <a href="https://wa.me/27000000000" class="contact-card" target="_blank" rel="noopener">
+      <a href="https://wa.me/27615491701" class="contact-card" target="_blank" rel="noopener">
         <div class="contact-icon">💬</div>
         <h4>WhatsApp</h4>
-        <p>Message us anytime</p>
+        <p>061 549 1701</p>
       </a>
-      <a href="tel:+27000000000" class="contact-card">
+      <a href="tel:+27615491701" class="contact-card">
         <div class="contact-icon">📞</div>
         <h4>Call</h4>
-        <p>Speak to us directly</p>
+        <p>061 549 1701</p>
       </a>
       <a href="mailto:info@lehakwedaycare.co.za" class="contact-card">
         <div class="contact-icon">✉️</div>
@@ -381,8 +400,8 @@
       </a>
       <div class="contact-card">
         <div class="contact-icon">📍</div>
-        <h4>Visit</h4>
-        <p>Address to be confirmed</p>
+        <h4>Visit Us</h4>
+        <p>12625 Phase 6, Bloemside, 9323</p>
       </div>
     </div>
   </div>
@@ -391,7 +410,7 @@
 <footer>
   <div class="footer-logo">🌻 Lehakwe Daycare</div>
   <p>A safe, caring, and nurturing place for children to learn, play, and grow.</p>
-  <p><a href="mailto:info@lehakwedaycare.co.za" style="color:var(--amber);text-decoration:none;">info@lehakwedaycare.co.za</a></p>
+  <p><a href="mailto:info@lehakwedaycare.co.za" style="color:var(--color-accent-yellow);text-decoration:none;">info@lehakwedaycare.co.za</a> | <a href="tel:+27615491701" style="color:var(--color-accent-yellow);text-decoration:none;">061 549 1701</a></p>
   <p class="credit">Powered by <a href="https://chiefops.ai" target="_blank" rel="noopener">ChiefOps AI</a></p>
 </footer>
 
