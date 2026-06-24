@@ -14,6 +14,8 @@ import Attendance from './pages/Attendance';
 import Fees from './pages/Fees';
 import Notices from './pages/Notices';
 import Milestones from './pages/Milestones';
+import AIAssistant from './pages/AIAssistant';
+import TownDashboard from './pages/TownDashboard';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: '📊' },
@@ -23,6 +25,8 @@ const NAV_ITEMS = [
   { path: '/milestones', label: 'Milestones', icon: '🎯' },
   { path: '/fees', label: 'Fees & Finance', icon: '💰' },
   { path: '/notices', label: 'Notice Board', icon: '📢' },
+  { path: '/ai', label: 'AI Assistant', icon: '🤖' },
+  { path: '/town', label: 'Ubuntu Town', icon: '🏙️' },
   { path: '/payslips', label: 'Payslips', icon: '💸' },
   { path: '/staff', label: 'Staff', icon: '👥' },
   { path: '/parents', label: 'Parents', icon: '👨‍👩‍👧' },
@@ -238,6 +242,8 @@ export default function App() {
           <Route path="/milestones" element={<Milestones />} />
           <Route path="/fees" element={<Fees />} />
           <Route path="/notices" element={<Notices />} />
+          <Route path="/ai" element={<AIAssistant />} />
+          <Route path="/town" element={<TownDashboard />} />
           <Route path="/payslips" element={<Payslips />} />
           <Route path="/staff" element={<Staff />} />
           <Route path="/parents" element={<Parents />} />

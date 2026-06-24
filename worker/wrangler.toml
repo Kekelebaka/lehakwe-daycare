@@ -12,6 +12,9 @@ database_id = "aaafb847-a046-4bf1-8325-d41e6244a505"
 binding = "EMAIL_STORE"
 bucket_name = "lehakwe-emails"
 
+[ai]
+binding = "AI"
+
 [vars]
 FORWARD_EMAILS = "nolaphamorakabee@gmail.com,sophylebaka@gmail.com"
 AUTO_REPLY_ENABLED = "true"

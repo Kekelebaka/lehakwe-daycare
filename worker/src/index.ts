@@ -658,6 +658,119 @@ export default {
         return Response.json({ ok: true }, { headers: corsHeaders });
       }
 
+      // ── GET /api/ai/templates ──
+      if (path === '/api/ai/templates' && request.method === 'GET') {
+        const templates = await env.DB.prepare('SELECT * FROM ai_templates WHERE active = 1 ORDER BY category, name').all();
+        return Response.json({ ok: true, data: templates.results }, { headers: corsHeaders });
+      }
+
+      // ── POST /api/ai/generate ──
+      if (path === '/api/ai/generate' && request.method === 'POST') {
+        const body = await request.json() as any;
+        const { template_id, variables, custom_prompt, language } = body;
+
+        let prompt = '';
+        if (template_id) {
+          const tpl = await env.DB.prepare('SELECT * FROM ai_templates WHERE template_id = ?').bind(template_id).first();
+          if (!tpl) return Response.json({ ok: false, error: 'Template not found' }, { status: 404, headers: corsHeaders });
+          prompt = tpl.prompt_template as string;
+          // Replace variables
+          if (variables) {
+            for (const [key, value] of Object.entries(variables)) {
+              prompt = prompt.replace(new RegExp(`\\{${key}\\}`, 'g'), value as string);
+            }
+          }
+        } else if (custom_prompt) {
+          prompt = custom_prompt;
+        } else {
+          return Response.json({ ok: false, error: 'Provide template_id or custom_prompt' }, { status: 400, headers: corsHeaders });
+        }
+
+        // Add language instruction if not English
+        const lang = language || 'en';
+        const langMap: Record<string, string> = { en: 'English', st: 'Sesotho', af: 'Afrikaans', zu: 'Zulu' };
+        if (lang !== 'en') {
+          prompt = `Please write this in ${langMap[lang] || lang}. Keep the same meaning and tone.\n\n${prompt}`;
+        }
+
+        // Call Cloudflare Workers AI
+        const aiResponse = await env.AI.run('@cf/meta/llama-3.2-3b-instruct', {
+          messages: [
+            { role: 'system', content: 'You are a professional South African ECD (Early Childhood Development) assistant for Lehakwe Daycare (NPO 22910695). Write in a warm, professional tone. Use South African English conventions. Always include relevant NPO and contact details when writing letters.' },
+            { role: 'user', content: prompt }
+          ],
+          max_tokens: 1024,
+        });
+
+        const output = (aiResponse as any).response || JSON.stringify(aiResponse);
+
+        // Save to generated_docs
+        const docId = `doc-${Date.now()}`;
+        let docType = 'custom';
+        if (template_id) {
+          if (template_id.includes('letter') || template_id.includes('seeda')) docType = 'letter';
+          else if (template_id.includes('whatsapp') || template_id.includes('absence')) docType = 'whatsapp';
+          else if (template_id.includes('dsd')) docType = 'dsd';
+          else if (template_id.includes('report')) docType = 'report';
+          else docType = 'notice';
+        }
+        await env.DB.prepare(
+          'INSERT INTO generated_docs (doc_id, template_id, input_variables, output_text, doc_type, language, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        ).bind(docId, template_id || null, JSON.stringify(variables || {}), output, docType, lang, 'admin').run();
+
+        return Response.json({ ok: true, data: { doc_id: docId, output, template_id, language: lang } }, { headers: corsHeaders });
+      }
+
+      // ── GET /api/ai/docs ──
+      if (path === '/api/ai/docs' && request.method === 'GET') {
+        const docs = await env.DB.prepare('SELECT * FROM generated_docs ORDER BY created_at DESC LIMIT 50').all();
+        return Response.json({ ok: true, data: docs.results }, { headers: corsHeaders });
+      }
+
+      // ── GET /api/ai/suggest-reply ──
+      if (path === '/api/ai/suggest-reply' && request.method === 'GET') {
+        const threadId = url.searchParams.get('thread_id');
+        if (!threadId) return Response.json({ ok: false, error: 'thread_id required' }, { status: 400, headers: corsHeaders });
+
+        const thread = await env.DB.prepare('SELECT * FROM inbox_messages WHERE message_id = ?').bind(threadId).first();
+        if (!thread) return Response.json({ ok: false, error: 'Thread not found' }, { status: 404, headers: corsHeaders });
+
+        const replyPrompt = `A parent sent this email to Lehakwe Daycare:\n\nSubject: ${thread.subject}\nBody: ${thread.body}\n\nSuggest 3 brief, professional reply options. Number them 1, 2, 3. Each under 100 words. Tone: warm, helpful, South African. Include relevant details from the daycare (NPO 22910695, hours 06:30-17:30, address 12625 Phase 6 Bloemside 9323).`;
+
+        const aiResponse = await env.AI.run('@cf/meta/llama-3.2-3b-instruct', {
+          messages: [
+            { role: 'system', content: 'You are a helpful ECD assistant. Suggest professional, warm email replies for a daycare in South Africa.' },
+            { role: 'user', content: replyPrompt }
+          ],
+          max_tokens: 512,
+        });
+
+        const suggestions = (aiResponse as any).response || JSON.stringify(aiResponse);
+        return Response.json({ ok: true, data: { suggestions, thread_id: threadId } }, { headers: corsHeaders });
+      }
+
+      // ── GET /api/town/config ──
+      if (path === '/api/town/config' && request.method === 'GET') {
+        const config = await env.DB.prepare('SELECT * FROM town_config WHERE active = 1').all();
+        return Response.json({ ok: true, data: config.results }, { headers: corsHeaders });
+      }
+
+      // ── POST /api/town/stats ──
+      if (path === '/api/town/stats' && request.method === 'GET') {
+        const [children, staff, centres] = await Promise.all([
+          env.DB.prepare('SELECT COUNT(*) as count FROM children WHERE status = \'active\'').first(),
+          env.DB.prepare('SELECT COUNT(*) as count FROM staff WHERE active = 1').first(),
+          env.DB.prepare('SELECT COUNT(*) as count FROM settings').first(),
+        ]);
+        return Response.json({ ok: true, data: {
+          total_children: children?.count || 0,
+          total_staff: staff?.count || 0,
+          total_centres: centres?.count || 0,
+          town: 'Bloemfontein',
+          coordinator: 'Keke Lebaka',
+        }}, { headers: corsHeaders });
+      }
+
       return Response.json({ ok: false, error: 'Endpoint not found' }, { status: 404, headers: corsHeaders });
 
     } catch (err) {

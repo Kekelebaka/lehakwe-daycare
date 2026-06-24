@@ -106,4 +106,15 @@ export const api = {
   createWaitlistEntry: (data: any) => request<any>('/waitlist', { method: 'POST', body: JSON.stringify(data) }),
   updateWaitlistEntry: (id: string, data: any) => request<any>(`/waitlist/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteWaitlistEntry: (id: string) => request<any>(`/waitlist/${id}`, { method: 'DELETE' }),
+
+  // AI Assistant
+  getAITemplates: () => request<any[]>('/ai/templates'),
+  generateAI: (data: { template_id?: string; variables?: any; custom_prompt?: string; language?: string }) =>
+    request<any>('/ai/generate', { method: 'POST', body: JSON.stringify(data) }),
+  getAIDocs: () => request<any[]>('/ai/docs'),
+  suggestReply: (threadId: string) => request<any>(`/ai/suggest-reply?thread_id=${threadId}`),
+
+  // Town
+  getTownConfig: () => request<any[]>('/town/config'),
+  getTownStats: () => request<any>('/town/stats'),
 };
