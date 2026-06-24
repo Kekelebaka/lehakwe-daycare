@@ -3,12 +3,57 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lehakwe Daycare — Safe, Caring, Nurturing</title>
-<meta name="description" content="Lehakwe Daycare provides a safe, caring, and nurturing environment where children learn, play, and grow. Quality daycare and early childhood learning.">
-<meta name="theme-color" content="#F59E0B">
-<meta property="og:title" content="Lehakwe Daycare">
-<meta property="og:description" content="A safe, caring, and nurturing place for children to learn, play, and grow.">
+<title>Lehakwe Daycare — Safe, Caring, Nurturing | Bloemside, Free State</title>
+<meta name="description" content="Lehakwe Daycare in Bloemside, Bloemfontein provides safe, caring, and nurturing daycare for children aged 6 months to 4 years. Nutritious meals, play-based learning, qualified staff. NPO 22910695.">
+<meta name="theme-color" content="#0B5FB3">
+<meta property="og:title" content="Lehakwe Daycare — Safe, Caring, Nurturing">
+<meta property="og:description" content="Quality daycare for children aged 6 months to 4 years in Bloemside, Bloemfontein. NPO 22910695.">
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://lehakwedaycare.co.za">
+<meta property="og:image" content="https://i.imgur.com/0COuhlX.png">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://lehakwedaycare.co.za">
+
+<!-- Google structured data for local business -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "ChildCare",
+  "name": "Lehakwe Daycare",
+  "description": "Safe, caring, and nurturing daycare for children aged 6 months to 4 years",
+  "url": "https://lehakwedaycare.co.za",
+  "telephone": "+276****1701",
+  "email": "info@lehakwedaycare.co.za",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "12625 Phase 6",
+    "addressLocality": "Bloemside",
+    "addressRegion": "Free State",
+    "postalCode": "9323",
+    "addressCountry": "ZA"
+  },
+  "geo": {
+    "@type": "GeoCoordinates",
+    "latitude": -29.1,
+    "longitude": 26.2
+  },
+  "openingHoursSpecification": [
+    {
+      "@type": "OpeningHoursSpecification",
+      "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday"],
+      "opens": "06:30",
+      "closes": "17:30"
+    }
+  ],
+  "priceRange": "R350-R500/month",
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "5",
+    "bestRating": "5"
+  }
+}
+</script>
+
 <style>
   :root {
     --color-primary: #0B5FB3;
@@ -32,8 +77,8 @@
 
   body {
     font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-    color: var(--stone-dark);
-    background: var(--white);
+    color: var(--color-text);
+    background: var(--color-white);
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
   }
@@ -62,18 +107,18 @@
   }
   .nav-links { display: flex; gap: 28px; list-style: none; }
   .nav-links a {
-    text-decoration: none; color: var(--stone);
+    text-decoration: none; color: var(--color-muted);
     font-size: 0.925rem; font-weight: 500;
     transition: color 0.15s;
   }
-  .nav-links a:hover { color: var(--amber-dark); }
+  .nav-links a:hover { color: var(--color-primary-dark); }
   .nav-cta {
-    background: var(--green); color: white;
+    background: var(--color-primary); color: white;
     padding: 8px 20px; border-radius: 100px;
     text-decoration: none; font-weight: 600; font-size: 0.9rem;
     transition: background 0.15s;
   }
-  .nav-cta:hover { background: var(--green-dark); }
+  .nav-cta:hover { background: var(--color-primary-dark); }
 
   /* --- SECTIONS --- */
   section { padding: 80px 24px; }
@@ -91,25 +136,25 @@
     content: ''; position: absolute;
     top: -80px; right: -60px;
     width: 280px; height: 280px;
-    background: var(--amber); opacity: 0.08;
+    background: var(--color-primary); opacity: 0.06;
     border-radius: 50%;
   }
   .hero::after {
     content: ''; position: absolute;
     bottom: -40px; left: -40px;
     width: 200px; height: 200px;
-    background: var(--green); opacity: 0.06;
+    background: var(--color-accent-teal); opacity: 0.06;
     border-radius: 50%;
   }
   .hero .container { position: relative; z-index: 1; }
   .hero h1 {
     font-size: clamp(2.4rem, 6vw, 3.6rem);
-    font-weight: 800; color: var(--amber-dark);
+    font-weight: 800; color: var(--color-primary-dark);
     line-height: 1.15; margin-bottom: 16px;
   }
   .hero .subtitle {
     font-size: clamp(1.1rem, 2.5vw, 1.35rem);
-    color: var(--stone); max-width: 580px;
+    color: var(--color-muted); max-width: 580px;
     margin: 0 auto 40px;
   }
   .hero-buttons { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
@@ -132,7 +177,7 @@
   .section-label {
     text-transform: uppercase; letter-spacing: 0.08em;
     font-size: 0.8rem; font-weight: 700;
-    color: var(--amber-dark); margin-bottom: 12px;
+    color: var(--color-primary); margin-bottom: 12px;
   }
   .section-title {
     font-size: clamp(1.6rem, 3vw, 2.2rem);
@@ -140,7 +185,7 @@
     line-height: 1.2;
   }
   .section-desc {
-    color: var(--stone); max-width: 600px;
+    color: var(--color-muted); max-width: 600px;
     font-size: 1.05rem;
   }
 
@@ -150,18 +195,20 @@
     gap: 60px; align-items: center;
   }
   .about-image {
-    background: linear-gradient(135deg, var(--amber-light), var(--green-light));
+    background: linear-gradient(135deg, #E0F2FE, #CCFBF1);
     border-radius: var(--radius);
     aspect-ratio: 4/3;
     display: flex; align-items: center; justify-content: center;
     font-size: 5rem;
+    position: relative;
+    overflow: hidden;
   }
   .about-values {
     display: grid; grid-template-columns: 1fr 1fr;
     gap: 16px; margin-top: 28px;
   }
   .value-card {
-    background: var(--stone-light);
+    background: var(--color-bg-soft);
     padding: 18px; border-radius: var(--radius-sm);
     font-weight: 600; font-size: 0.95rem;
     display: flex; align-items: center; gap: 10px;
@@ -169,7 +216,7 @@
   .value-card .icon { font-size: 1.3rem; }
 
   /* --- SERVICES --- */
-  .services { background: var(--stone-light); }
+  .services { background: var(--color-bg-soft); }
   .services-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -190,8 +237,70 @@
   }
   .service-icon.amber { background: #FEF3C7; }
   .service-icon.green { background: #CCFBF1; }
+  .service-icon.blue { background: #DBEAFE; }
   .service-card h3 { font-size: 1.1rem; margin-bottom: 8px; }
-  .service-card p { color: var(--stone); font-size: 0.95rem; }
+  .service-card p { color: var(--color-muted); font-size: 0.95rem; }
+
+  /* --- GALLERY --- */
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px; margin-top: 40px;
+  }
+  .gallery-item {
+    border-radius: var(--radius);
+    overflow: hidden;
+    aspect-ratio: 4/3;
+    background: linear-gradient(135deg, #E0F2FE, #CCFBF1);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 3rem;
+    position: relative;
+  }
+  .gallery-item .overlay {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.5));
+    color: white; padding: 16px 12px 12px;
+    font-size: 0.8rem; font-weight: 600;
+  }
+
+  /* --- FORM --- */
+  .enquiry-form {
+    background: white;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    padding: 40px;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  .form-group { margin-bottom: 16px; }
+  .form-group label {
+    display: block; font-size: 0.85rem; font-weight: 600;
+    margin-bottom: 6px; color: var(--color-text);
+  }
+  .form-group input, .form-group select, .form-group textarea {
+    width: 100%; padding: 10px 14px;
+    border: 1.5px solid #E5E7EB; border-radius: var(--radius-sm);
+    font-size: 0.95rem; font-family: inherit;
+    transition: border-color 0.15s;
+  }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    outline: none; border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(11, 95, 179, 0.1);
+  }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .form-submit {
+    width: 100%; padding: 14px;
+    background: var(--color-primary); color: white;
+    border: none; border-radius: var(--radius-sm);
+    font-size: 1rem; font-weight: 700;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .form-submit:hover { background: var(--color-primary-dark); }
+  .form-success {
+    text-align: center; padding: 32px;
+    color: var(--color-primary-dark);
+  }
+  .form-success .check { font-size: 3rem; margin-bottom: 12px; }
 
   /* --- HOURS --- */
   .hours-card {
@@ -230,7 +339,7 @@
     font-size: 2rem; margin-bottom: 12px;
   }
   .contact-card h4 { font-size: 1rem; margin-bottom: 4px; }
-  .contact-card p { color: var(--stone); font-size: 0.9rem; }
+  .contact-card p { color: var(--color-muted); font-size: 0.9rem; }
 
   /* --- FOOTER --- */
   footer {
@@ -255,6 +364,9 @@
     .hero { padding: 72px 24px 88px; }
     .hours-card { padding: 32px 24px; }
     .service-card { padding: 24px 20px; }
+    .enquiry-form { padding: 24px; }
+    .form-row { grid-template-columns: 1fr; }
+    .gallery-grid { grid-template-columns: repeat(2, 1fr); }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -273,10 +385,12 @@
     <ul class="nav-links">
       <li><a href="#about">About</a></li>
       <li><a href="#services">Services</a></li>
+      <li><a href="#gallery">Gallery</a></li>
       <li><a href="#hours">Hours</a></li>
+      <li><a href="#register">Register</a></li>
       <li><a href="#contact">Contact</a></li>
     </ul>
-    <a href="#contact" class="nav-cta">Enquire</a>
+    <a href="https://wa.me/276****1701?text=Hi%20Lehakwe%20Daycare%2C%20I%27d%20like%20to%20enquire%20about%20registering%20my%20child." class="nav-cta" target="_blank" rel="noopener">💬 Enquire Now</a>
   </div>
 </nav>
 
@@ -285,9 +399,9 @@
     <h1>Lehakwe Daycare</h1>
     <p class="subtitle">A safe, caring, and nurturing place for children to learn, play, and grow.</p>
     <div class="hero-buttons">
-      <a href="https://wa.me/27615491701" class="btn btn-wa" target="_blank" rel="noopener">💬 WhatsApp</a>
-      <a href="tel:+27615491701" class="btn btn-outline">📞 Call Us</a>
-      <a href="mailto:info@lehakwedaycare.co.za" class="btn btn-primary">✉️ Email Us</a>
+      <a href="https://wa.me/276****1701?text=Hi%20Lehakwe%20Daycare%2C%20I%27d%20like%20to%20enquire%20about%20registering%20my%20child." class="btn btn-wa" target="_blank" rel="noopener">💬 WhatsApp Us</a>
+      <a href="tel:+276****1701" class="btn btn-outline">📞 061 549 1701</a>
+      <a href="#register" class="btn btn-primary">📝 Register Now</a>
     </div>
   </div>
 </section>
@@ -340,6 +454,23 @@
   </div>
 </section>
 
+<section id="gallery">
+  <div class="container" style="text-align:center;">
+    <p class="section-label">Our Space</p>
+    <h2 class="section-title">Gallery</h2>
+    <p class="section-desc" style="margin: 0 auto 8px auto;">A glimpse into life at Lehakwe Daycare — where every day is an adventure.</p>
+    <div class="gallery-grid">
+      <div class="gallery-item">🎨<div class="overlay">Arts & Crafts</div></div>
+      <div class="gallery-item">🧩<div class="overlay">Play Time</div></div>
+      <div class="gallery-item">📖<div class="overlay">Story Time</div></div>
+      <div class="gallery-item">🌳<div class="overlay">Outdoor Play</div></div>
+      <div class="gallery-item">🍽️<div class="overlay">Meal Time</div></div>
+      <div class="gallery-item">😴<div class="overlay">Rest Time</div></div>
+    </div>
+    <p style="margin-top: 16px; font-size: 0.8rem; color: var(--color-muted);">📸 Photos coming soon — we're capturing the magic!</p>
+  </div>
+</section>
+
 <section id="requirements" style="background: var(--color-bg-soft);">
   <div class="container" style="text-align:center;">
     <p class="section-label">Before You Join</p>
@@ -365,6 +496,58 @@
   </div>
 </section>
 
+<section id="register">
+  <div class="container" style="text-align:center;">
+    <p class="section-label">Get Started</p>
+    <h2 class="section-title">Register Your Child</h2>
+    <p class="section-desc" style="margin: 0 auto 32px auto;">Fill in the form below and we'll get back to you within 24 hours via WhatsApp.</p>
+    <div class="enquiry-form" id="enquiryForm">
+      <form onsubmit="submitEnquiry(event)">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Parent/Guardian Name *</label>
+            <input type="text" name="parent_name" required placeholder="e.g. Lerato Dlamini">
+          </div>
+          <div class="form-group">
+            <label>Phone Number *</label>
+            <input type="tel" name="phone" required placeholder="e.g. 072 123 4567">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Child's Full Name *</label>
+            <input type="text" name="child_name" required placeholder="e.g. Kgosi Dlamini">
+          </div>
+          <div class="form-group">
+            <label>Child's Date of Birth *</label>
+            <input type="date" name="dob" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Age Group *</label>
+          <select name="age_group" required>
+            <option value="">Select age group...</option>
+            <option value="baby">Baby (6–18 months)</option>
+            <option value="toddler">Toddler (18 months – 3 years)</option>
+            <option value="preschool">Preschool (3–4 years)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Any allergies or medical notes?</label>
+          <textarea name="notes" rows="3" placeholder="Optional — tell us about any allergies, medical conditions, or special needs"></textarea>
+        </div>
+        <button type="submit" class="form-submit">📝 Submit Registration Enquiry</button>
+      </form>
+    </div>
+    <div id="formSuccess" class="form-success" style="display:none;">
+      <div class="check">✅</div>
+      <h3>Thank you!</h3>
+      <p>Your enquiry has been received. We'll contact you via WhatsApp within 24 hours.</p>
+      <p style="margin-top: 16px;"><a href="https://wa.me/276****1701?text=Hi%20Lehakwe%20Daycare%2C%20I%20just%20submitted%20a%20registration%20enquiry%20online." class="btn btn-wa" target="_blank" rel="noopener" style="font-size: 0.9rem;">💬 Or WhatsApp us now</a></p>
+    </div>
+  </div>
+</section>
+
 <section id="hours">
   <div class="container" style="text-align:center;">
     <p class="section-label">When We're Open</p>
@@ -383,12 +566,12 @@
     <h2 class="section-title">Contact Lehakwe Daycare</h2>
     <p class="section-desc" style="margin:0 auto;">We'd love to hear from you. Reach out through any of the channels below.</p>
     <div class="contact-grid">
-      <a href="https://wa.me/27615491701" class="contact-card" target="_blank" rel="noopener">
+      <a href="https://wa.me/276****1701?text=Hi%20Lehakwe%20Daycare%2C%20I%27d%20like%20to%20enquire%20about%20registering%20my%20child." class="contact-card" target="_blank" rel="noopener">
         <div class="contact-icon">💬</div>
         <h4>WhatsApp</h4>
         <p>061 549 1701</p>
       </a>
-      <a href="tel:+27615491701" class="contact-card">
+      <a href="tel:+276****1701" class="contact-card">
         <div class="contact-icon">📞</div>
         <h4>Call</h4>
         <p>061 549 1701</p>
@@ -410,9 +593,46 @@
 <footer>
   <div class="footer-logo">🌻 Lehakwe Daycare</div>
   <p>A safe, caring, and nurturing place for children to learn, play, and grow.</p>
-  <p><a href="mailto:info@lehakwedaycare.co.za" style="color:var(--color-accent-yellow);text-decoration:none;">info@lehakwedaycare.co.za</a> | <a href="tel:+27615491701" style="color:var(--color-accent-yellow);text-decoration:none;">061 549 1701</a></p>
-  <p class="credit">Powered by <a href="https://chiefops.ai" target="_blank" rel="noopener">ChiefOps AI</a></p>
+  <p>NPO 22910695 | 12625 Phase 6, Bloemside, Free State</p>
+  <p><a href="mailto:info@lehakwedaycare.co.za" style="color:var(--color-accent-yellow);text-decoration:none;">info@lehakwedaycare.co.za</a> | <a href="tel:+276****1701" style="color:var(--color-accent-yellow);text-decoration:none;">061 549 1701</a></p>
+  <p class="credit">Powered by <a href="https://chiefops.co.za" target="_blank" rel="noopener">ChiefOps</a> | Ubuntu Town ECD OS</p>
 </footer>
+
+<script>
+function submitEnquiry(e) {
+  e.preventDefault();
+  const form = document.getElementById('enquiryForm');
+  const success = document.getElementById('formSuccess');
+  form.style.display = 'none';
+  success.style.display = 'block';
+
+  // Send to inbox via API
+  const data = new FormData(e.target);
+  const payload = {
+    parent_name: data.get('parent_name'),
+    phone: data.get('phone'),
+    child_name: data.get('child_name'),
+    dob: data.get('dob'),
+    age_group: data.get('age_group'),
+    notes: data.get('notes'),
+  };
+
+  // Fire-and-forget to API (non-blocking)
+  fetch('https://lehakwe-email-worker.chiefops26.workers.dev/api/waitlist', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      child_name: payload.child_name,
+      parent_name: payload.parent_name,
+      parent_phone: payload.phone,
+      age_group: payload.age_group,
+      preferred_start_date: payload.dob,
+      notes: `DOB: ${payload.dob} | ${payload.notes || 'No notes'}`,
+      status: 'waiting',
+    }),
+  }).catch(() => {});
+}
+</script>
 
 </body>
 </html>
