@@ -93,7 +93,11 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const db = initDb(env.DB);
     const corsHeaders: Record<string, string> = {
-      'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN,
+      'Access-Control-Allow-Origin': (() => {
+        const allowed = (env.ALLOWED_ORIGIN || '').split(',').map((o: string) => o.trim());
+        const origin = request.headers.get('Origin') || '';
+        return allowed.includes(origin) ? origin : allowed[0] || '*';
+      })(),
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Content-Type': 'application/json',
@@ -107,9 +111,25 @@ export default {
     try {
       // ── GET /api/me ──
       if (path === '/api/me' && request.method === 'GET') {
-        const email = request.headers.get('Cf-Access-Authenticated-User-Email') || 'kekelebaka@outlook.com';
-        // Fallback for development/testing without Access
-        return Response.json({ ok: true, data: { name: 'Admin', email, role: 'owner' } }, { headers: corsHeaders });
+        const email = request.headers.get('Cf-Access-Authenticated-User-Email');
+        if (!email) {
+          // Dev fallback — only works when Cloudflare Access is not enforcing
+          return Response.json({ ok: true, data: { id: 'dev-admin', name: 'Dev Admin', email: 'admin@lehakwedaycare.co.za', role: 'admin', signature: '', active: 1 } }, { headers: corsHeaders });
+        }
+        const staffRow = await db.DB.prepare(
+          'SELECT * FROM staff WHERE email = ? AND active = 1 LIMIT 1'
+        ).bind(email).first<any>();
+        if (!staffRow) {
+          return Response.json({ ok: false, error: 'Access denied — staff record not found for ' + email }, { status: 403, headers: corsHeaders });
+        }
+        return Response.json({ ok: true, data: {
+          id: staffRow.staff_id,
+          name: staffRow.full_name,
+          email: staffRow.email,
+          role: (staffRow.job_title === 'Centre Manager' || staffRow.job_title === 'Daycare Principal') ? 'admin' : 'staff',
+          signature: staffRow.signature || '',
+          active: staffRow.active,
+        }}, { headers: corsHeaders });
       }
 
       // ── GET /api/dashboard ──
