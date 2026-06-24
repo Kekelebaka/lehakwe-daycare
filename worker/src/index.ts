@@ -224,6 +224,76 @@ export default {
         return Response.json({ ok: true, data: result.results }, { headers: corsHeaders });
       }
 
+      // ── PUT /api/threads/:id/status ──
+      const statusMatch = path.match(/^\/api\/threads\/(.+)\/status$/);
+      if (statusMatch && request.method === 'PUT') {
+        const threadId = statusMatch[1];
+        const { status, staff_id } = await request.json() as any;
+        await db.updateStatus(threadId, status);
+        await db.insertAudit({ id: db.uuid(), thread_id: threadId, staff_id: staff_id || 'system', action: status === 'closed' ? 'closed' : 'assigned', metadata: JSON.stringify({ status }) });
+        return Response.json({ ok: true }, { headers: corsHeaders });
+      }
+
+      // ── PUT /api/threads/:id/assign ──
+      const assignMatch = path.match(/^\/api\/threads\/(.+)\/assign$/);
+      if (assignMatch && request.method === 'PUT') {
+        const threadId = assignMatch[1];
+        const { staff_id } = await request.json() as any;
+        await db.assignThread(threadId, staff_id);
+        await db.insertAudit({ id: db.uuid(), thread_id: threadId, staff_id: staff_id || 'system', action: 'assigned', metadata: JSON.stringify({ staff_id }) });
+        return Response.json({ ok: true }, { headers: corsHeaders });
+      }
+
+      // ── POST /api/notes ──
+      if (path === '/api/notes' && request.method === 'POST') {
+        const { thread_id, staff_id, note } = await request.json() as any;
+        const noteId = db.uuid();
+        await db.insertNote({ id: noteId, thread_id, staff_id, note });
+        await db.insertAudit({ id: db.uuid(), thread_id, staff_id: staff_id || 'system', action: 'noted', metadata: '{}' });
+        return Response.json({ ok: true, data: { id: noteId } }, { headers: corsHeaders });
+      }
+
+      // ── GET /api/templates ──
+      if (path === '/api/templates' && request.method === 'GET') {
+        const templates = await db.getTemplates();
+        return Response.json({ ok: true, data: templates }, { headers: corsHeaders });
+      }
+
+      // ── POST /api/send  (inbox app style reply) ──
+      // ── POST /api/threads/:id/reply  (manager app style reply) ──
+      const replyPathMatch = path.match(/^\/api\/threads\/(.+)\/reply$/);
+      if ((path === '/api/send' || replyPathMatch) && request.method === 'POST') {
+        const body_raw = await request.json() as any;
+        const thread_id = body_raw.thread_id || (replyPathMatch ? replyPathMatch[1] : null);
+        const staff_id  = body_raw.staff_id || 'system';
+        const replyBody = body_raw.body || '';
+        const template_id = body_raw.template_id;
+
+        if (!thread_id) return Response.json({ ok: false, error: 'thread_id required' }, { status: 400, headers: corsHeaders });
+
+        // Fetch original message for recipient info
+        const msgs = await db.getThread(thread_id);
+        const original = msgs[0];
+        if (!original) return Response.json({ ok: false, error: 'Thread not found' }, { status: 404, headers: corsHeaders });
+
+        // Resolve final body (template or manual)
+        let finalBody = replyBody;
+        if (template_id) {
+          const tpl = await db.getTemplate(template_id);
+          if (tpl) finalBody = tpl.body.replace('[SIGNATURE]', '');
+        }
+
+        // Update thread status
+        await db.updateStatus(thread_id, 'replied');
+
+        // Audit
+        await db.insertAudit({ id: db.uuid(), thread_id, staff_id, action: 'replied', metadata: JSON.stringify({ body_length: finalBody.length }) });
+
+        // Note: email sending from HTTP Workers requires MailChannels or similar.
+        // Status is updated — the reply is recorded. Email delivery to be configured separately.
+        return Response.json({ ok: true, data: { message_id: db.uuid(), sent: false, note: 'Status updated. Configure MailChannels to enable outbound email from HTTP handlers.' } }, { headers: corsHeaders });
+      }
+
       return Response.json({ ok: false, error: 'Endpoint not found' }, { status: 404, headers: corsHeaders });
 
     } catch (err) {
