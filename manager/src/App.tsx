@@ -16,6 +16,7 @@ import Notices from './pages/Notices';
 import Milestones from './pages/Milestones';
 import AIAssistant from './pages/AIAssistant';
 import TownDashboard from './pages/TownDashboard';
+import ParentPortal from './pages/ParentPortal';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: '📊' },
@@ -233,26 +234,34 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <BrowserRouter>
-      <AppLayout>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/inbox" element={<Inbox />} />
-          <Route path="/attendance" element={<Attendance />} />
-          <Route path="/children" element={<Children />} />
-          <Route path="/milestones" element={<Milestones />} />
-          <Route path="/fees" element={<Fees />} />
-          <Route path="/notices" element={<Notices />} />
-          <Route path="/ai" element={<AIAssistant />} />
-          <Route path="/town" element={<TownDashboard />} />
-          <Route path="/payslips" element={<Payslips />} />
-          <Route path="/staff" element={<Staff />} />
-          <Route path="/parents" element={<Parents />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/documents" element={<Documents />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </AppLayout>
+      <Routes>
+        {/* Parent Portal — standalone, no sidebar */}
+        <Route path="/parent/:childId" element={<ParentPortal />} />
+
+        {/* Admin routes — with sidebar */}
+        <Route path="/*" element={
+          <AppLayout>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/inbox" element={<Inbox />} />
+              <Route path="/attendance" element={<Attendance />} />
+              <Route path="/children" element={<Children />} />
+              <Route path="/milestones" element={<Milestones />} />
+              <Route path="/fees" element={<Fees />} />
+              <Route path="/notices" element={<Notices />} />
+              <Route path="/ai" element={<AIAssistant />} />
+              <Route path="/town" element={<TownDashboard />} />
+              <Route path="/payslips" element={<Payslips />} />
+              <Route path="/staff" element={<Staff />} />
+              <Route path="/parents" element={<Parents />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/documents" element={<Documents />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </AppLayout>
+        } />
+      </Routes>
     </BrowserRouter>
   );
 }

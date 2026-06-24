@@ -771,6 +771,62 @@ export default {
         }}, { headers: corsHeaders });
       }
 
+      // ═══════════════════════════════════════════════════════
+      // PUBLIC PARENT PORTAL (no auth required)
+      // ═══════════════════════════════════════════════════════
+
+      // ── GET /api/public/child/:id ──
+      if (path.startsWith('/api/public/child/') && request.method === 'GET') {
+        const childId = path.split('/').pop();
+        const child = await env.DB.prepare(
+          `SELECT c.*, p.full_name as parent_name, p.phone as parent_phone, p.email as parent_email
+           FROM children c LEFT JOIN parents p ON c.parent_id = p.parent_id
+           WHERE c.child_id = ?`
+        ).bind(childId).first();
+        if (!child) return Response.json({ ok: false, error: 'Child not found' }, { status: 404, headers: corsHeaders });
+
+        // Get attendance this month
+        const now = new Date();
+        const month = now.getMonth() + 1;
+        const year = now.getFullYear();
+        const attendance = await env.DB.prepare(
+          `SELECT * FROM attendance_records WHERE child_id = ? AND strftime('%m', date) = ? AND strftime('%Y', date) = ?
+           ORDER BY date DESC`
+        ).bind(childId, String(month).padStart(2, '0'), String(year)).all();
+
+        // Get fee records
+        const fees = await env.DB.prepare(
+          `SELECT * FROM fee_records WHERE child_id = ? ORDER BY year DESC, month DESC LIMIT 12`
+        ).bind(childId).all();
+
+        // Get published notices
+        const notices = await env.DB.prepare(
+          `SELECT * FROM notices WHERE published = 1 ORDER BY pinned DESC, created_at DESC LIMIT 10`
+        ).all();
+
+        // Get settings (centre info)
+        const settings = await env.DB.prepare('SELECT * FROM settings LIMIT 1').first();
+
+        // Calculate outstanding balance
+        const totalDue = fees.results.reduce((sum: number, f: any) => sum + (f.amount_due || 0), 0);
+        const totalPaid = fees.results.reduce((sum: number, f: any) => sum + (f.amount_paid || 0), 0);
+
+        return Response.json({ ok: true, data: {
+          child,
+          attendance: attendance.results,
+          fees: fees.results,
+          notices: notices.results,
+          settings,
+          balance: { total_due: totalDue, total_paid: totalPaid, outstanding: totalDue - totalPaid },
+        }}, { headers: corsHeaders });
+      }
+
+      // ── GET /api/public/qr/:id ── (returns a simple QR URL)
+      if (path.startsWith('/api/public/qr/') && request.method === 'GET') {
+        const childId = path.split('/').pop();
+        return Response.json({ ok: true, data: { url: `https://app.lehakwedaycare.co.za/parent/${childId}` } }, { headers: corsHeaders });
+      }
+
       return Response.json({ ok: false, error: 'Endpoint not found' }, { status: 404, headers: corsHeaders });
 
     } catch (err) {
