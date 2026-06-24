@@ -52,7 +52,7 @@ export function initDb(db: D1Database) {
     // --- Staff ---
     async getStaff(staffId: string): Promise<StaffRow | null> {
       return await db.prepare(
-        'SELECT * FROM staff WHERE id = ? AND active = 1'
+        'SELECT * FROM staff WHERE staff_id = ? AND active = 1'
       ).bind(staffId).first<StaffRow>();
     },
 
@@ -64,7 +64,7 @@ export function initDb(db: D1Database) {
 
     async getAllStaff(): Promise<StaffRow[]> {
       const result = await db.prepare(
-        'SELECT * FROM staff WHERE active = 1 ORDER BY name ASC'
+        'SELECT * FROM staff WHERE active = 1 ORDER BY full_name ASC'
       ).all<StaffRow>();
       return result.results;
     },
@@ -78,7 +78,7 @@ export function initDb(db: D1Database) {
 
     async getNotes(threadId: string): Promise<NoteRow[]> {
       const result = await db.prepare(
-        'SELECT n.*, s.name as staff_name FROM notes n LEFT JOIN staff s ON n.staff_id = s.id WHERE n.thread_id = ? ORDER BY n.created_at ASC'
+        'SELECT n.*, s.full_name as staff_name FROM notes n LEFT JOIN staff s ON n.staff_id = s.staff_id WHERE n.thread_id = ? ORDER BY n.created_at ASC'
       ).bind(threadId).all<NoteRow & { staff_name: string }>();
       return result.results as unknown as NoteRow[];
     },
@@ -92,7 +92,7 @@ export function initDb(db: D1Database) {
 
     async getAuditLogs(threadId: string): Promise<AuditLogRow[]> {
       const result = await db.prepare(
-        'SELECT a.*, s.name as staff_name FROM audit_logs a LEFT JOIN staff s ON a.staff_id = s.id WHERE a.thread_id = ? ORDER BY a.created_at DESC'
+        'SELECT a.*, s.full_name as staff_name FROM audit_logs a LEFT JOIN staff s ON a.staff_id = s.staff_id WHERE a.thread_id = ? ORDER BY a.created_at DESC'
       ).bind(threadId).all<AuditLogRow & { staff_name: string }>();
       return result.results as unknown as AuditLogRow[];
     },
