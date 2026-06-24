@@ -117,4 +117,14 @@ export const api = {
   // Town
   getTownConfig: () => request<any[]>('/town/config'),
   getTownStats: () => request<any>('/town/stats'),
+
+  // Daily Logs
+  getDailyLogs: (date?: string, childId?: string) => {
+    const params = new URLSearchParams();
+    if (date) params.set('date', date);
+    if (childId) params.set('child_id', childId);
+    return request<any[]>(`/daily-logs?${params.toString()}`);
+  },
+  createDailyLog: (data: any) => request<any>('/daily-logs', { method: 'POST', body: JSON.stringify(data) }),
+  deleteDailyLog: (id: string) => request<any>(`/daily-logs/${id}`, { method: 'DELETE' }),
 };

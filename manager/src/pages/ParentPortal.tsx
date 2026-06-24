@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import jsPDF from 'jspdf';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
@@ -56,6 +57,71 @@ export default function ParentPortal() {
   const attendanceDays = attendance.length;
   const presentDays = attendance.filter((a: any) => a.status === 'present').length;
   const attendanceRate = attendanceDays > 0 ? Math.round((presentDays / attendanceDays) * 100) : 0;
+
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  const downloadStatement = () => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    // Header
+    doc.setFillColor(11, 95, 179);
+    doc.rect(0, 0, pageWidth, 35, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18);
+    doc.text('Lehakwe Daycare', 14, 18);
+    doc.setFontSize(9);
+    doc.text('NPO 22910695 • 12625 Phase 6, Bloemside 9323', 14, 25);
+    doc.text(`Fee Statement • Generated ${new Date().toLocaleDateString('en-ZA')}`, 14, 31);
+    // Child info
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(11);
+    doc.text(`Child: ${child.full_name || '—'}`, 14, 45);
+    doc.text(`Parent: ${child.parent_name || '—'}`, 14, 52);
+    doc.text(`Age Group: ${child.age_group || '—'}`, 14, 59);
+    // Table header
+    let y = 70;
+    doc.setFillColor(243, 244, 246);
+    doc.rect(14, y - 5, pageWidth - 28, 8, 'F');
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Month', 16, y);
+    doc.text('Year', 46, y);
+    doc.text('Due', 70, y);
+    doc.text('Paid', 100, y);
+    doc.text('Status', 130, y);
+    doc.text('Method', 160, y);
+    doc.setFont('helvetica', 'normal');
+    y += 10;
+    // Rows
+    fees.forEach((f: any) => {
+      if (y > 270) { doc.addPage(); y = 20; }
+      doc.setFontSize(8);
+      doc.text(String(MONTHS[f.month - 1] || '—'), 16, y);
+      doc.text(String(f.year || '—'), 46, y);
+      doc.text(String(`R${(f.amount_due || 0).toLocaleString()}`), 70, y);
+      doc.text(String(`R${(f.amount_paid || 0).toLocaleString()}`), 100, y);
+      doc.text(String(f.status || '—'), 130, y);
+      doc.text(String(f.payment_method || '—'), 160, y);
+      y += 7;
+    });
+    // Summary
+    y += 5;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(14, y, pageWidth - 14, y);
+    y += 8;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Total Due: R${balance.total_due.toLocaleString()}`, 16, y);
+    doc.text(`Total Paid: R${balance.total_paid.toLocaleString()}`, 100, y);
+    y += 7;
+    doc.setTextColor(220, 38, 38);
+    doc.text(`Outstanding: R${balance.outstanding.toLocaleString()}`, 16, y);
+    // Footer
+    doc.setTextColor(150, 150, 150);
+    doc.setFontSize(7);
+    doc.text('Powered by Ubuntu Town ECD OS • lehakwedaycare.co.za', 14, 285);
+    doc.save(`${child.full_name}_Fee_Statement_${MONTHS[new Date().getMonth()]}_${new Date().getFullYear()}.pdf`);
+  };
 
   return (
     <div style={{ minHeight: '100vh', background: '#F0F9FF', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
@@ -179,6 +245,13 @@ export default function ParentPortal() {
         {/* FEES TAB */}
         {activeTab === 'fees' && (
           <div>
+            {fees.length > 0 && (
+              <button onClick={downloadStatement} style={{
+                width: '100%', padding: 12, borderRadius: 10, border: 'none',
+                background: '#0B5FB3', color: 'white', fontWeight: 700, cursor: 'pointer',
+                fontSize: '0.9rem', marginBottom: 12,
+              }}>📄 Download Fee Statement (PDF)</button>
+            )}
             {fees.length === 0 ? (
               <div style={{ textAlign: 'center', padding: 32, color: '#9CA3AF', background: 'white', borderRadius: 10 }}>No fee records yet</div>
             ) : (

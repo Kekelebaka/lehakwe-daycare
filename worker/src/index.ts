@@ -827,6 +827,45 @@ export default {
         return Response.json({ ok: true, data: { url: `https://app.lehakwedaycare.co.za/parent/${childId}` } }, { headers: corsHeaders });
       }
 
+      // ═══════════════════════════════════════════════════════
+      // DAILY LOGS
+      // ═══════════════════════════════════════════════════════
+
+      // ── GET /api/daily-logs?date=YYYY-MM-DD&child_id=xxx ──
+      if (path === '/api/daily-logs' && request.method === 'GET') {
+        const date = url.searchParams.get('date');
+        const childId = url.searchParams.get('child_id');
+        let query = `SELECT dl.*, c.full_name as child_name, s.full_name as staff_name
+                     FROM daily_logs dl
+                     LEFT JOIN children c ON dl.child_id = c.child_id
+                     LEFT JOIN staff s ON dl.staff_id = s.staff_id WHERE 1=1`;
+        const params: any[] = [];
+        if (date) { query += ' AND dl.log_date = ?'; params.push(date); }
+        if (childId) { query += ' AND dl.child_id = ?'; params.push(childId); }
+        query += ' ORDER BY dl.created_at DESC';
+        const stmt = params.length > 0 ? env.DB.prepare(query).bind(...params) : env.DB.prepare(query);
+        const logs = await stmt.all();
+        return Response.json({ ok: true, data: logs.results }, { headers: corsHeaders });
+      }
+
+      // ── POST /api/daily-logs ──
+      if (path === '/api/daily-logs' && request.method === 'POST') {
+        const body = await request.json() as any;
+        const id = `log-${Date.now()}`;
+        await env.DB.prepare(
+          `INSERT INTO daily_logs (log_id, child_id, staff_id, log_date, activity_type, description, mood, notes)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        ).bind(id, body.child_id, body.staff_id || 'system', body.log_date, body.activity_type, body.description, body.mood || null, body.notes || null).run();
+        return Response.json({ ok: true, data: { log_id: id } }, { headers: corsHeaders });
+      }
+
+      // ── DELETE /api/daily-logs/:id ──
+      if (path.startsWith('/api/daily-logs/') && request.method === 'DELETE') {
+        const logId = path.split('/').pop();
+        await env.DB.prepare('DELETE FROM daily_logs WHERE log_id = ?').bind(logId).run();
+        return Response.json({ ok: true }, { headers: corsHeaders });
+      }
+
       return Response.json({ ok: false, error: 'Endpoint not found' }, { status: 404, headers: corsHeaders });
 
     } catch (err) {

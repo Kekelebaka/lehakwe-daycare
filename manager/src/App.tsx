@@ -17,11 +17,13 @@ import Milestones from './pages/Milestones';
 import AIAssistant from './pages/AIAssistant';
 import TownDashboard from './pages/TownDashboard';
 import ParentPortal from './pages/ParentPortal';
+import DailyLogs from './pages/DailyLogs';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: '📊' },
   { path: '/inbox', label: 'Inbox', icon: '✉️' },
   { path: '/attendance', label: 'Attendance', icon: '📋' },
+  { path: '/daily-logs', label: 'Daily Logs', icon: '📝' },
   { path: '/children', label: 'Children', icon: '👶' },
   { path: '/milestones', label: 'Milestones', icon: '🎯' },
   { path: '/fees', label: 'Fees & Finance', icon: '💰' },
@@ -245,6 +247,7 @@ export default function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/inbox" element={<Inbox />} />
               <Route path="/attendance" element={<Attendance />} />
+              <Route path="/daily-logs" element={<DailyLogs />} />
               <Route path="/children" element={<Children />} />
               <Route path="/milestones" element={<Milestones />} />
               <Route path="/fees" element={<Fees />} />
