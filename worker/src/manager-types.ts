@@ -101,3 +101,22 @@ export interface ApiResponse<T = unknown> {
   error?: string;
   data?: T;
 }
+
+export interface DocumentRow {
+  document_id: string;
+  related_entity_type: string;
+  related_entity_id: string;
+  document_type: string;
+  title: string;
+  expiry_date?: string;
+  file_url?: string;
+  status: 'active' | 'expired' | 'pending';
+  uploaded_at: string;
+  uploaded_by?: string;
+}
+
+export interface SettingRow {
+  setting_key: string;
+  setting_value: string;
+  updated_at: string;
+}

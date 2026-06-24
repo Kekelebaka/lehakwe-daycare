@@ -39,11 +39,32 @@ export const api = {
 
   // Children & Parents
   getChildren: () => request<any[]>('/children'),
+  createChild: (data: any) => request<any>('/children', { method: 'POST', body: JSON.stringify(data) }),
+  updateChild: (id: string, data: any) => request<any>(`/children/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteChild: (id: string) => request<any>(`/children/${id}`, { method: 'DELETE' }),
+
   getParents: () => request<any[]>('/parents'),
-  
+  createParent: (data: any) => request<any>('/parents', { method: 'POST', body: JSON.stringify(data) }),
+  updateParent: (id: string, data: any) => request<any>(`/parents/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteParent: (id: string) => request<any>(`/parents/${id}`, { method: 'DELETE' }),
+
+  // Documents
+  getDocuments: () => request<any[]>('/documents'),
+  createDocument: (data: any) => request<any>('/documents', { method: 'POST', body: JSON.stringify(data) }),
+  deleteDocument: (id: string) => request<any>(`/documents/${id}`, { method: 'DELETE' }),
+
+  // Settings
+  getSettings: () => request<any>('/settings'),
+  updateSettings: (settings: any) => request<any>('/settings', { method: 'PUT', body: JSON.stringify(settings) }),
+
   // Compliance
   getCompliance: () => request<any[]>('/compliance'),
-  
+  updateCompliance: (id: string, status: string, notes: string) =>
+    request<any>(`/compliance/${id}`, { method: 'PUT', body: JSON.stringify({ status, notes }) }),
+
+  // Staff (extended)
+  deleteStaff: (id: string) => request<any>(`/staff/${id}`, { method: 'DELETE' }),
+
   // Audit
   getAuditLogs: () => request<any[]>('/audit'),
 };

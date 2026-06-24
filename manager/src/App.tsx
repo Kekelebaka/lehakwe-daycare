@@ -57,14 +57,6 @@ function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
       <main className="main-content">
-        <div style={{
-          background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: 8,
-          padding: '12px 16px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12,
-          color: '#92400E', fontSize: '0.9rem', fontWeight: 500
-        }}>
-          <span>⚠️</span>
-          <span><strong>Demo Mode:</strong> Sample data is loaded for demonstration. Please replace with confirmed daycare records before production use. All staff and payroll records are fully editable.</span>
-        </div>
         {children}
       </main>
     </div>

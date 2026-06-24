@@ -10,7 +10,7 @@ import {
 } from './email-handler';
 import type { SendRequest } from './types';
 import type {
-  StaffRow, PayslipRow, PayslipItemRow, ChildRow, ParentRow, ComplianceRow, ApiResponse
+  StaffRow, PayslipRow, PayslipItemRow, ChildRow, ParentRow, ComplianceRow, DocumentRow, SettingRow, ApiResponse
 } from './manager-types';
 
 interface Env {
@@ -135,7 +135,8 @@ export default {
       // ── GET /api/dashboard ──
       if (path === '/api/dashboard' && request.method === 'GET') {
         const staffCount = await db.getAllStaff().then(s => s.length);
-        const childrenCount = 15; // Placeholder until CRUD is fully wired
+        const childrenRow = await db.DB.prepare('SELECT COUNT(*) as count FROM children').first<{count: number}>();
+        const childrenCount = childrenRow?.count ?? 0;
         const newInbox = await db.getAllThreads().then(t => t.filter(x => x.status === 'new').length);
         return Response.json({
           ok: true, data: { staffCount, childrenCount, newInbox, payrollStatus: 'pending' }
@@ -192,6 +193,123 @@ export default {
       if (path === '/api/parents' && request.method === 'GET') {
         const result = await db.DB.prepare('SELECT * FROM parents ORDER BY full_name ASC').all<ParentRow>();
         return Response.json({ ok: true, data: result.results }, { headers: corsHeaders });
+      }
+
+      // ── CHILDREN CRUD ──
+      if (path === '/api/children' && request.method === 'POST') {
+        const data = await request.json() as Partial<ChildRow>;
+        const id = db.uuid();
+        await db.DB.prepare(`INSERT INTO children (child_id, full_name, date_of_birth, age_group, enrolment_date, status, parent_id, emergency_contact_name, emergency_contact_phone, medical_notes, allergies, pickup_authorisation_notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`)
+          .bind(id, data.full_name, data.date_of_birth || null, data.age_group || null, data.enrolment_date || null, data.status || 'active', data.parent_id || null, data.emergency_contact_name || null, data.emergency_contact_phone || null, data.medical_notes || null, data.allergies || null, data.pickup_authorisation_notes || null).run();
+        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'created', module_name: 'children', record_id: id, metadata: JSON.stringify(data) });
+        return Response.json({ ok: true, data: { child_id: id } }, { headers: corsHeaders });
+      }
+
+      const childUpdateMatch = path.match(/^\/api\/children\/(.+)$/);
+      if (childUpdateMatch && request.method === 'PUT') {
+        const id = childUpdateMatch[1];
+        const data = await request.json() as Partial<ChildRow>;
+        await db.DB.prepare(`UPDATE children SET full_name = COALESCE(?, full_name), date_of_birth = COALESCE(?, date_of_birth), age_group = COALESCE(?, age_group), enrolment_date = COALESCE(?, enrolment_date), status = COALESCE(?, status), parent_id = COALESCE(?, parent_id), emergency_contact_name = COALESCE(?, emergency_contact_name), emergency_contact_phone = COALESCE(?, emergency_contact_phone), medical_notes = COALESCE(?, medical_notes), allergies = COALESCE(?, allergies), pickup_authorisation_notes = COALESCE(?, pickup_authorisation_notes), updated_at = datetime('now') WHERE child_id = ?`)
+          .bind(data.full_name ?? null, data.date_of_birth ?? null, data.age_group ?? null, data.enrolment_date ?? null, data.status ?? null, data.parent_id ?? null, data.emergency_contact_name ?? null, data.emergency_contact_phone ?? null, data.medical_notes ?? null, data.allergies ?? null, data.pickup_authorisation_notes ?? null, id).run();
+        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'updated', module_name: 'children', record_id: id, metadata: JSON.stringify(data) });
+        return Response.json({ ok: true }, { headers: corsHeaders });
+      }
+
+      if (childUpdateMatch && request.method === 'DELETE') {
+        const id = childUpdateMatch[1];
+        await db.DB.prepare('DELETE FROM children WHERE child_id = ?').bind(id).run();
+        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'deleted', module_name: 'children', record_id: id, metadata: '{}' });
+        return Response.json({ ok: true }, { headers: corsHeaders });
+      }
+
+      // ── PARENTS CRUD ──
+      if (path === '/api/parents' && request.method === 'POST') {
+        const data = await request.json() as Partial<ParentRow>;
+        const id = db.uuid();
+        await db.DB.prepare(`INSERT INTO parents (parent_id, full_name, phone, email, address, relationship_to_child, emergency_contact, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`)
+          .bind(id, data.full_name, data.phone || null, data.email || null, data.address || null, data.relationship_to_child || null, data.emergency_contact || 0, data.notes || null).run();
+        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'created', module_name: 'parents', record_id: id, metadata: JSON.stringify(data) });
+        return Response.json({ ok: true, data: { parent_id: id } }, { headers: corsHeaders });
+      }
+
+      const parentUpdateMatch = path.match(/^\/api\/parents\/(.+)$/);
+      if (parentUpdateMatch && request.method === 'PUT') {
+        const id = parentUpdateMatch[1];
+        const data = await request.json() as Partial<ParentRow>;
+        await db.DB.prepare(`UPDATE parents SET full_name = COALESCE(?, full_name), phone = COALESCE(?, phone), email = COALESCE(?, email), address = COALESCE(?, address), relationship_to_child = COALESCE(?, relationship_to_child), emergency_contact = COALESCE(?, emergency_contact), notes = COALESCE(?, notes), updated_at = datetime('now') WHERE parent_id = ?`)
+          .bind(data.full_name ?? null, data.phone ?? null, data.email ?? null, data.address ?? null, data.relationship_to_child ?? null, data.emergency_contact ?? null, data.notes ?? null, id).run();
+        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'updated', module_name: 'parents', record_id: id, metadata: JSON.stringify(data) });
+        return Response.json({ ok: true }, { headers: corsHeaders });
+      }
+
+      if (parentUpdateMatch && request.method === 'DELETE') {
+        const id = parentUpdateMatch[1];
+        await db.DB.prepare('DELETE FROM parents WHERE parent_id = ?').bind(id).run();
+        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'deleted', module_name: 'parents', record_id: id, metadata: '{}' });
+        return Response.json({ ok: true }, { headers: corsHeaders });
+      }
+
+      // ── DOCUMENTS CRUD ──
+      if (path === '/api/documents' && request.method === 'GET') {
+        const entityType = url.searchParams.get('related_entity_type');
+        const entityId = url.searchParams.get('related_entity_id');
+        let query = 'SELECT * FROM documents';
+        const params: any[] = [];
+        if (entityType && entityId) {
+          query += ' WHERE related_entity_type = ? AND related_entity_id = ?';
+          params.push(entityType, entityId);
+        } else if (entityType) {
+          query += ' WHERE related_entity_type = ?';
+          params.push(entityType);
+        }
+        query += ' ORDER BY uploaded_at DESC';
+        const result = await db.DB.prepare(query).bind(...params).all<DocumentRow>();
+        return Response.json({ ok: true, data: result.results }, { headers: corsHeaders });
+      }
+
+      if (path === '/api/documents' && request.method === 'POST') {
+        const data = await request.json() as Partial<DocumentRow>;
+        const id = db.uuid();
+        await db.DB.prepare(`INSERT INTO documents (document_id, related_entity_type, related_entity_id, document_type, title, expiry_date, file_url, status, uploaded_by, uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`)
+          .bind(id, data.related_entity_type, data.related_entity_id, data.document_type, data.title, data.expiry_date || null, data.file_url || null, data.status || 'active', data.uploaded_by || null).run();
+        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'created', module_name: 'documents', record_id: id, metadata: JSON.stringify(data) });
+        return Response.json({ ok: true, data: { document_id: id } }, { headers: corsHeaders });
+      }
+
+      const docDeleteMatch = path.match(/^\/api\/documents\/(.+)$/);
+      if (docDeleteMatch && request.method === 'DELETE') {
+        const id = docDeleteMatch[1];
+        await db.DB.prepare('DELETE FROM documents WHERE document_id = ?').bind(id).run();
+        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'deleted', module_name: 'documents', record_id: id, metadata: '{}' });
+        return Response.json({ ok: true }, { headers: corsHeaders });
+      }
+
+      // ── SETTINGS CRUD ──
+      if (path === '/api/settings' && request.method === 'GET') {
+        const result = await db.DB.prepare('SELECT * FROM settings').all<SettingRow>();
+        const settingsObj: Record<string, string> = {};
+        for (const row of result.results) {
+          settingsObj[row.setting_key] = row.setting_value;
+        }
+        return Response.json({ ok: true, data: settingsObj }, { headers: corsHeaders });
+      }
+
+      if (path === '/api/settings' && request.method === 'PUT') {
+        const { settings } = await request.json() as { settings: Record<string, string> };
+        const stmt = db.DB.prepare(`INSERT INTO settings (setting_key, setting_value, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = datetime('now')`);
+        const batch = Object.entries(settings).map(([key, value]) => stmt.bind(key, value));
+        await db.DB.batch(batch);
+        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'updated', module_name: 'settings', record_id: 'bulk', metadata: JSON.stringify({ keys: Object.keys(settings) }) });
+        return Response.json({ ok: true }, { headers: corsHeaders });
+      }
+
+      // ── STAFF DELETE (soft) ──
+      const staffDeleteMatch = path.match(/^\/api\/staff\/(.+)$/);
+      if (staffDeleteMatch && request.method === 'DELETE') {
+        const id = staffDeleteMatch[1];
+        await db.DB.prepare('UPDATE staff SET active = 0, updated_at = datetime(\'now\') WHERE staff_id = ?').bind(id).run();
+        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'deactivated', module_name: 'staff', record_id: id, metadata: '{}' });
+        return Response.json({ ok: true }, { headers: corsHeaders });
       }
 
       // ── COMPLIANCE ──
