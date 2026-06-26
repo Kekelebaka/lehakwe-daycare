@@ -866,6 +866,61 @@ export default {
         return Response.json({ ok: true }, { headers: corsHeaders });
       }
 
+      // ═══════════════════════════════════════════════════════
+      // LEAVE REQUESTS
+      // ═══════════════════════════════════════════════════════
+
+      // ── GET /api/leave?status=xxx&staff_id=xxx ──
+      if (path === '/api/leave' && request.method === 'GET') {
+        const status = url.searchParams.get('status');
+        const staffId = url.searchParams.get('staff_id');
+        let query = `SELECT lr.*, s.full_name AS staff_name
+                     FROM leave_requests lr
+                     LEFT JOIN staff s ON lr.staff_id = s.staff_id WHERE 1=1`;
+        const params: any[] = [];
+        if (status) { query += ' AND lr.status = ?'; params.push(status); }
+        if (staffId) { query += ' AND lr.staff_id = ?'; params.push(staffId); }
+        query += ' ORDER BY lr.created_at DESC';
+        const stmt = params.length > 0 ? env.DB.prepare(query).bind(...params) : env.DB.prepare(query);
+        const result = await stmt.all();
+        return Response.json({ ok: true, data: result.results }, { headers: corsHeaders });
+      }
+
+      // ── POST /api/leave ──
+      if (path === '/api/leave' && request.method === 'POST') {
+        const body = await request.json() as any;
+        const id = crypto.randomUUID();
+        await env.DB.prepare(`
+          INSERT INTO leave_requests (leave_id, staff_id, leave_type, start_date, end_date, reason, status)
+          VALUES (?, ?, ?, ?, ?, ?, 'pending')
+        `).bind(id, body.staff_id, body.leave_type, body.start_date, body.end_date, body.reason || null).run();
+        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'created', module_name: 'leave_requests', record_id: id, metadata: JSON.stringify(body) });
+        return Response.json({ ok: true, data: { leave_id: id } }, { headers: corsHeaders });
+      }
+
+      // ── PUT /api/leave/:id ──
+      const leaveMatch = path.match(/^\/api\/leave\/(.+)$/);
+      if (leaveMatch && request.method === 'PUT') {
+        const body = await request.json() as any;
+        const fields: string[] = [];
+        const vals: any[] = [];
+        if (body.status !== undefined) { fields.push('status = ?'); vals.push(body.status); }
+        if (body.approved_by !== undefined) { fields.push('approved_by = ?'); vals.push(body.approved_by); }
+        if (body.reason !== undefined) { fields.push('reason = ?'); vals.push(body.reason); }
+        if (fields.length === 0) return Response.json({ ok: false, error: 'No fields to update' }, { status: 400, headers: corsHeaders });
+        vals.push(leaveMatch[1]);
+        await env.DB.prepare(`UPDATE leave_requests SET ${fields.join(', ')} WHERE leave_id = ?`).bind(...vals).run();
+        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'updated', module_name: 'leave_requests', record_id: leaveMatch[1], metadata: JSON.stringify(body) });
+        return Response.json({ ok: true }, { headers: corsHeaders });
+      }
+
+      // ── DELETE /api/leave/:id ──
+      if (leaveMatch && request.method === 'DELETE') {
+        await env.DB.prepare('DELETE FROM leave_requests WHERE leave_id = ?').bind(leaveMatch[1]).run();
+        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'deleted', module_name: 'leave_requests', record_id: leaveMatch[1], metadata: '{}' });
+        return Response.json({ ok: true }, { headers: corsHeaders });
+      }
+
       return Response.json({ ok: false, error: 'Endpoint not found' }, { status: 404, headers: corsHeaders });
 
     } catch (err) {

@@ -7,6 +7,16 @@ export default function Notices() {
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState({ title: '', content: '', category: 'general', pinned: false, published: true });
+  const [quickBroadcast, setQuickBroadcast] = useState('');
+
+  const shareToWhatsApp = (title: string, content: string, date?: string) => {
+    const formattedDate = date
+      ? new Date(date).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })
+      : new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' });
+    const message = `📢 *${title}*\n\n${content}\n\n📅 ${formattedDate}\n\n— Lehakwe Daycare`;
+    const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+  };
 
   useEffect(() => { api.getNotices().then(setNotices).catch(() => {}).finally(() => setLoading(false)); }, []);
 
@@ -64,6 +74,26 @@ export default function Notices() {
           style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#0B5FB3', color: 'white', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
           + New Notice
         </button>
+      </div>
+
+      {/* Quick WhatsApp Broadcast */}
+      <div className="card" style={{ marginBottom: 16, background: '#F0FDF4', borderLeft: '4px solid #25D366' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <span style={{ fontSize: '1.2rem' }}>📱</span>
+          <h3 style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>Quick WhatsApp Broadcast</h3>
+        </div>
+        <p style={{ fontSize: '0.8rem', color: '#6B7280', marginBottom: 10 }}>Send a quick message to parents via WhatsApp without creating a formal notice.</p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input type="text" placeholder="Type a quick message for parents..." value={quickBroadcast}
+            onChange={e => setQuickBroadcast(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && quickBroadcast.trim()) shareToWhatsApp('Quick Message', quickBroadcast); }}
+            style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: '0.9rem' }} />
+          <button onClick={() => { if (quickBroadcast.trim()) shareToWhatsApp('Quick Message', quickBroadcast); }}
+            disabled={!quickBroadcast.trim()}
+            style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: quickBroadcast.trim() ? '#25D366' : '#A7F3D0', color: quickBroadcast.trim() ? 'white' : '#6B7280', fontWeight: 600, cursor: quickBroadcast.trim() ? 'pointer' : 'not-allowed', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+            📱 Send to WhatsApp
+          </button>
+        </div>
       </div>
 
       {/* Add/Edit Form */}
@@ -145,6 +175,10 @@ export default function Notices() {
                 <button onClick={() => togglePublish(n)}
                   style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #E5E7EB', background: n.published ? '#D1FAE5' : 'white', fontSize: '0.7rem', cursor: 'pointer' }}>
                   {n.published ? '✅ Published' : '📝 Draft'}
+                </button>
+                <button onClick={() => shareToWhatsApp(n.title, n.content, n.created_at)}
+                  style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #25D366', background: '#F0FDF4', color: '#25D366', fontSize: '0.7rem', cursor: 'pointer' }}>
+                  📱 WhatsApp
                 </button>
                 <button onClick={() => { setEditing(n); setForm({ title: n.title, content: n.content, category: n.category, pinned: !!n.pinned, published: !!n.published }); setShowAdd(false); }}
                   style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #E5E7EB', background: 'white', fontSize: '0.7rem', cursor: 'pointer' }}>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, createContext, useContext } from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { api } from './lib/api';
 import Dashboard from './pages/Dashboard';
@@ -15,11 +15,32 @@ import Fees from './pages/Fees';
 import Notices from './pages/Notices';
 import Milestones from './pages/Milestones';
 import AIAssistant from './pages/AIAssistant';
-import TownDashboard from './pages/TownDashboard';
 import ParentPortal from './pages/ParentPortal';
 import DailyLogs from './pages/DailyLogs';
+import LeaveTracker from './pages/LeaveTracker';
+import WaitlistPage from './pages/WaitlistPage';
+import ParentDashboard from './pages/ParentDashboard';
+import RoleSelector from './components/RoleSelector';
 
-const NAV_ITEMS = [
+// ── Role Types & Context ──
+export type UserRole = 'admin' | 'staff' | 'parent';
+
+interface RoleContextType {
+  role: UserRole;
+  setRole: (role: UserRole) => void;
+  clearRole: () => void;
+}
+
+export const RoleContext = createContext<RoleContextType>({
+  role: 'admin',
+  setRole: () => {},
+  clearRole: () => {},
+});
+
+export const useRole = () => useContext(RoleContext);
+
+// ── Role-based nav definitions ──
+const ADMIN_NAV = [
   { path: '/', label: 'Dashboard', icon: '📊' },
   { path: '/inbox', label: 'Inbox', icon: '✉️' },
   { path: '/attendance', label: 'Attendance', icon: '📋' },
@@ -29,7 +50,8 @@ const NAV_ITEMS = [
   { path: '/fees', label: 'Fees & Finance', icon: '💰' },
   { path: '/notices', label: 'Notice Board', icon: '📢' },
   { path: '/ai', label: 'AI Assistant', icon: '🤖' },
-  { path: '/town', label: 'Ubuntu Town', icon: '🏙️' },
+  { path: '/leave', label: 'Leave Tracker', icon: '🏖️' },
+  { path: '/waitlist', label: 'Waitlist', icon: '📋' },
   { path: '/payslips', label: 'Payslips', icon: '💸' },
   { path: '/staff', label: 'Staff', icon: '👥' },
   { path: '/parents', label: 'Parents', icon: '👨‍👩‍👧' },
@@ -38,41 +60,90 @@ const NAV_ITEMS = [
   { path: '/settings', label: 'Settings', icon: '⚙️' },
 ];
 
-const BOTTOM_NAV = [
-  { path: '/', label: 'Home', icon: '📊' },
+const STAFF_NAV = [
+  { path: '/', label: 'Dashboard', icon: '📊' },
+  { path: '/attendance', label: 'Attendance', icon: '📋' },
+  { path: '/daily-logs', label: 'Daily Logs', icon: '📝' },
   { path: '/inbox', label: 'Inbox', icon: '✉️' },
-  { path: '/children', label: 'Children', icon: '👶' },
-  { path: '/payslips', label: 'Payslips', icon: '💰' },
-  { path: '/reports', label: 'Reports', icon: '📑' },
-  { path: '__more__', label: 'More', icon: '⋯' },
+  { path: '/payslips', label: 'Payslips', icon: '💸' },
+  { path: '/notices', label: 'Notice Board', icon: '📢' },
 ];
 
-function AppLayout({ children }: { children: React.ReactNode }) {
+const PARENT_NAV = [
+  { path: '/', label: 'My Child', icon: '👶' },
+  { path: '/attendance', label: 'Attendance', icon: '📋' },
+  { path: '/fees', label: 'Fees', icon: '💰' },
+  { path: '/notices', label: 'Notices', icon: '📢' },
+  { path: '/milestones', label: 'Milestones', icon: '🎯' },
+];
+
+const ROLE_NAV_MAP: Record<UserRole, typeof ADMIN_NAV> = {
+  admin: ADMIN_NAV,
+  staff: STAFF_NAV,
+  parent: PARENT_NAV,
+};
+
+// ── Bottom Nav per role ──
+const ROLE_BOTTOM_NAV: Record<UserRole, { path: string; label: string; icon: string }[]> = {
+  admin: [
+    { path: '/', label: 'Home', icon: '📊' },
+    { path: '/inbox', label: 'Inbox', icon: '✉️' },
+    { path: '/children', label: 'Children', icon: '👶' },
+    { path: '/payslips', label: 'Payslips', icon: '💰' },
+    { path: '/reports', label: 'Reports', icon: '📑' },
+  ],
+  staff: [
+    { path: '/', label: 'Home', icon: '📊' },
+    { path: '/attendance', label: 'Attendance', icon: '📋' },
+    { path: '/daily-logs', label: 'Logs', icon: '📝' },
+    { path: '/inbox', label: 'Inbox', icon: '✉️' },
+    { path: '/payslips', label: 'Payslips', icon: '💸' },
+  ],
+  parent: [
+    { path: '/', label: 'My Child', icon: '👶' },
+    { path: '/attendance', label: 'Attendance', icon: '📋' },
+    { path: '/fees', label: 'Fees', icon: '💰' },
+    { path: '/notices', label: 'Notices', icon: '📢' },
+    { path: '/milestones', label: 'Milestones', icon: '🎯' },
+  ],
+};
+
+const ROLE_LABELS: Record<UserRole, { emoji: string; label: string; color: string }> = {
+  admin: { emoji: '🛡️', label: 'Admin', color: '#7C3AED' },
+  staff: { emoji: '👩‍🏫', label: 'Staff', color: '#0B5FB3' },
+  parent: { emoji: '👨‍👩‍👧', label: 'Parent', color: '#14B8A6' },
+};
+
+// ── App Layout ──
+function AppLayout({ children, role, onClearRole }: { children: React.ReactNode; role: UserRole; onClearRole: () => void }) {
   const location = useLocation();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showMore, setShowMore] = useState(false);
+  const [showRoleMenu, setShowRoleMenu] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
+  const roleMenuRef = useRef<HTMLDivElement>(null);
+
+  const navItems = ROLE_NAV_MAP[role];
+  const bottomNav = ROLE_BOTTOM_NAV[role];
+  const roleInfo = ROLE_LABELS[role];
 
   useEffect(() => {
     api.getMe().then(setUser).catch(() => setUser({ name: 'Admin', role: 'admin' })).finally(() => setLoading(false));
   }, []);
 
-  // Close more menu on route change
   useEffect(() => {
     setShowMore(false);
   }, [location.pathname]);
 
-  // Close more menu on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
-        setShowMore(false);
-      }
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setShowMore(false);
+      if (roleMenuRef.current && !roleMenuRef.current.contains(e.target as Node)) setShowRoleMenu(false);
     }
-    if (showMore) document.addEventListener('mousedown', handleClick);
+    if (showMore || showRoleMenu) document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [showMore]);
+  }, [showMore, showRoleMenu]);
 
   if (loading) return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: 12 }}>
@@ -94,7 +165,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <nav className="sidebar-nav">
-          {NAV_ITEMS.map(item => (
+          {navItems.map(item => (
             <Link key={item.path} to={item.path} className={`nav-item ${location.pathname === item.path ? 'active' : ''}`}>
               <span>{item.icon}</span> {item.label}
             </Link>
@@ -102,7 +173,19 @@ function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="sidebar-footer">
           <div>{user?.name || 'Admin'}</div>
-          <div style={{ textTransform: 'capitalize', color: '#3B82F6' }}>{user?.role || 'admin'}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: '0.75rem' }}>{roleInfo.emoji}</span>
+            <span style={{ textTransform: 'capitalize', color: roleInfo.color, fontWeight: 600 }}>{roleInfo.label}</span>
+          </div>
+          <button
+            onClick={onClearRole}
+            style={{
+              marginTop: 8, padding: '4px 8px', fontSize: '0.7rem', border: '1px solid #E5E7EB',
+              borderRadius: 6, background: 'white', cursor: 'pointer', color: '#6B7280',
+            }}
+          >
+            Switch Role
+          </button>
         </div>
       </aside>
 
@@ -112,12 +195,49 @@ function AppLayout({ children }: { children: React.ReactNode }) {
           <img src="https://i.imgur.com/0COuhlX.png" alt="Logo" style={{ height: 32, width: 'auto' }} />
           <div>
             <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#073B73' }}>Lehakwe Manager</div>
-            <div style={{ fontSize: '0.65rem', color: '#6B7280' }}>ECD Operating System</div>
+            <div style={{ fontSize: '0.65rem', color: roleInfo.color, fontWeight: 500 }}>{roleInfo.emoji} {roleInfo.label}</div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#0B5FB3', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 600 }}>
-            {(user?.name || 'A')[0]}
+          <div ref={roleMenuRef} style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowRoleMenu(!showRoleMenu)}
+              style={{
+                width: 32, height: 32, borderRadius: '50%', background: roleInfo.color, color: 'white',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 600,
+                border: 'none', cursor: 'pointer',
+              }}
+            >
+              {(user?.name || 'A')[0]}
+            </button>
+            {showRoleMenu && (
+              <div style={{
+                position: 'absolute', top: '100%', right: 0, marginTop: 4,
+                background: 'white', borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                padding: 8, minWidth: 160, zIndex: 100,
+              }}>
+                <div style={{ padding: '6px 12px', fontSize: '0.7rem', color: '#9CA3AF', fontWeight: 500 }}>
+                  Current Role
+                </div>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+                  background: '#F3F4F6', borderRadius: 8, margin: '0 4px',
+                }}>
+                  <span>{roleInfo.emoji}</span>
+                  <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{roleInfo.label}</span>
+                </div>
+                <div style={{ borderTop: '1px solid #E5E7EB', margin: '4px 0' }} />
+                <button
+                  onClick={() => { onClearRole(); setShowRoleMenu(false); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', width: '100%',
+                    border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.85rem', color: '#DC2626',
+                  }}
+                >
+                  🔄 Switch Role
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -129,81 +249,68 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* ── Mobile Bottom Nav ── */}
       <nav className="bottom-nav">
-        {BOTTOM_NAV.map(item => {
-          if (item.path === '__more__') {
-            return (
-              <div key="more" ref={moreRef} style={{ position: 'relative' }}>
-                <button
-                  onClick={() => setShowMore(!showMore)}
-                  style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                    padding: '6px 12px', border: 'none', background: 'none', cursor: 'pointer',
-                    color: showMore ? '#0B5FB3' : '#6B7280', fontSize: '0.65rem', fontWeight: 500,
-                  }}
-                >
-                  <span style={{ fontSize: '1.3rem' }}>⋯</span>
-                  <span>More</span>
-                </button>
-                {showMore && (
-                  <div style={{
-                    position: 'absolute', bottom: '100%', right: 0, marginBottom: 8,
-                    background: 'white', borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                    padding: 8, minWidth: 180, zIndex: 100,
-                  }}>
-                    {NAV_ITEMS.filter(n => !BOTTOM_NAV.some(b => b.path === n.path)).map(n => (
-                      <Link
-                        key={n.path}
-                        to={n.path}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-                          borderRadius: 8, textDecoration: 'none', color: location.pathname === n.path ? '#0B5FB3' : '#374151',
-                          fontWeight: location.pathname === n.path ? 600 : 400, fontSize: '0.85rem',
-                          background: location.pathname === n.path ? '#EFF6FF' : 'transparent',
-                        }}
-                        onClick={() => setShowMore(false)}
-                      >
-                        <span>{n.icon}</span> {n.label}
-                      </Link>
-                    ))}
-                    <div style={{ borderTop: '1px solid #E5E7EB', marginTop: 4, paddingTop: 4 }}>
-                      <Link
-                        to="/settings"
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-                          borderRadius: 8, textDecoration: 'none', color: location.pathname === '/settings' ? '#0B5FB3' : '#374151',
-                          fontSize: '0.85rem',
-                        }}
-                        onClick={() => setShowMore(false)}
-                      >
-                        <span>⚙️</span> Settings
-                      </Link>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          }
+        {bottomNav.slice(0, 4).map(item => {
           const isActive = location.pathname === item.path;
           return (
-            <Link
-              key={item.path}
-              to={item.path}
-              style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                padding: '6px 12px', textDecoration: 'none',
-                color: isActive ? '#0B5FB3' : '#6B7280',
-                fontSize: '0.65rem', fontWeight: isActive ? 600 : 500,
-              }}
-            >
+            <Link key={item.path} to={item.path} style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+              padding: '6px 12px', textDecoration: 'none',
+              color: isActive ? '#0B5FB3' : '#6B7280', fontSize: '0.65rem', fontWeight: isActive ? 600 : 500,
+            }}>
               <span style={{ fontSize: '1.3rem' }}>{item.icon}</span>
               <span>{item.label}</span>
             </Link>
           );
         })}
+        {/* More button */}
+        <div ref={moreRef} style={{ position: 'relative' }}>
+          <button
+            onClick={() => setShowMore(!showMore)}
+            style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+              padding: '6px 12px', border: 'none', background: 'none', cursor: 'pointer',
+              color: showMore ? '#0B5FB3' : '#6B7280', fontSize: '0.65rem', fontWeight: 500,
+            }}
+          >
+            <span style={{ fontSize: '1.3rem' }}>⋯</span>
+            <span>More</span>
+          </button>
+          {showMore && (
+            <div style={{
+              position: 'absolute', bottom: '100%', right: 0, marginBottom: 8,
+              background: 'white', borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+              padding: 8, minWidth: 180, zIndex: 100,
+            }}>
+              {navItems.filter(n => !bottomNav.slice(0, 4).some(b => b.path === n.path)).map(n => (
+                <Link key={n.path} to={n.path} style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+                  borderRadius: 8, textDecoration: 'none',
+                  color: location.pathname === n.path ? '#0B5FB3' : '#374151',
+                  fontWeight: location.pathname === n.path ? 600 : 400, fontSize: '0.85rem',
+                  background: location.pathname === n.path ? '#EFF6FF' : 'transparent',
+                }} onClick={() => setShowMore(false)}>
+                  <span>{n.icon}</span> {n.label}
+                </Link>
+              ))}
+              <div style={{ borderTop: '1px solid #E5E7EB', marginTop: 4, paddingTop: 4 }}>
+                <button
+                  onClick={() => { onClearRole(); setShowMore(false); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', width: '100%',
+                    border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.85rem', color: '#DC2626',
+                  }}
+                >
+                  🔄 Switch Role
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </nav>
 
       {/* ── Mobile More Drawer ── */}
       {showMore && <div onClick={() => setShowMore(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 90 }} />}
+      {showRoleMenu && <div onClick={() => setShowRoleMenu(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.1)', zIndex: 90 }} />}
 
       <style>{`
         .mobile-header { display: none; }
@@ -233,38 +340,61 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
+// ── Root App ──
 export default function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        {/* Parent Portal — standalone, no sidebar */}
-        <Route path="/parent/:childId" element={<ParentPortal />} />
+  const [role, setRole] = useState<UserRole | null>(() => {
+    const stored = localStorage.getItem('lehakwe-role');
+    return (stored as UserRole) || null;
+  });
 
-        {/* Admin routes — with sidebar */}
-        <Route path="/*" element={
-          <AppLayout>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/inbox" element={<Inbox />} />
-              <Route path="/attendance" element={<Attendance />} />
-              <Route path="/daily-logs" element={<DailyLogs />} />
-              <Route path="/children" element={<Children />} />
-              <Route path="/milestones" element={<Milestones />} />
-              <Route path="/fees" element={<Fees />} />
-              <Route path="/notices" element={<Notices />} />
-              <Route path="/ai" element={<AIAssistant />} />
-              <Route path="/town" element={<TownDashboard />} />
-              <Route path="/payslips" element={<Payslips />} />
-              <Route path="/staff" element={<Staff />} />
-              <Route path="/parents" element={<Parents />} />
-              <Route path="/reports" element={<Reports />} />
-              <Route path="/documents" element={<Documents />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </AppLayout>
-        } />
-      </Routes>
-    </BrowserRouter>
+  const handleSetRole = (r: UserRole) => {
+    setRole(r);
+    localStorage.setItem('lehakwe-role', r);
+  };
+
+  const handleClearRole = () => {
+    setRole(null);
+    localStorage.removeItem('lehakwe-role');
+  };
+
+  if (!role) {
+    return <RoleSelector onSelect={handleSetRole} />;
+  }
+
+  return (
+    <RoleContext.Provider value={{ role, setRole: handleSetRole, clearRole: handleClearRole }}>
+      <BrowserRouter>
+        <Routes>
+          {/* Parent Portal — standalone, no sidebar */}
+          <Route path="/parent/:childId" element={<ParentPortal />} />
+
+          {/* Main routes — with sidebar */}
+          <Route path="/*" element={
+            <AppLayout role={role} onClearRole={handleClearRole}>
+              <Routes>
+                <Route path="/" element={role === 'parent' ? <ParentDashboard /> : <Dashboard />} />
+                <Route path="/inbox" element={<Inbox />} />
+                <Route path="/attendance" element={<Attendance />} />
+                <Route path="/daily-logs" element={<DailyLogs />} />
+                <Route path="/children" element={<Children />} />
+                <Route path="/milestones" element={<Milestones />} />
+                <Route path="/fees" element={<Fees />} />
+                <Route path="/notices" element={<Notices />} />
+                <Route path="/ai" element={<AIAssistant />} />
+                <Route path="/leave" element={<LeaveTracker />} />
+                <Route path="/waitlist" element={<WaitlistPage />} />
+                <Route path="/payslips" element={<Payslips />} />
+                <Route path="/staff" element={<Staff />} />
+                <Route path="/parents" element={<Parents />} />
+                <Route path="/reports" element={<Reports />} />
+                <Route path="/documents" element={<Documents />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </AppLayout>
+          } />
+        </Routes>
+      </BrowserRouter>
+    </RoleContext.Provider>
   );
 }

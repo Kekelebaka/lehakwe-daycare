@@ -114,6 +114,17 @@ export const api = {
   getAIDocs: () => request<any[]>('/ai/docs'),
   suggestReply: (threadId: string) => request<any>(`/ai/suggest-reply?thread_id=${threadId}`),
 
+  // Leave Requests
+  getLeaveRequests: (status?: string, staffId?: string) => {
+    const params = new URLSearchParams();
+    if (status) params.set('status', status);
+    if (staffId) params.set('staff_id', staffId);
+    return request<any[]>(`/leave?${params.toString()}`);
+  },
+  createLeaveRequest: (data: any) => request<any>('/leave', { method: 'POST', body: JSON.stringify(data) }),
+  updateLeaveRequest: (id: string, data: any) => request<any>(`/leave/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteLeaveRequest: (id: string) => request<any>(`/leave/${id}`, { method: 'DELETE' }),
+
   // Town
   getTownConfig: () => request<any[]>('/town/config'),
   getTownStats: () => request<any>('/town/stats'),
