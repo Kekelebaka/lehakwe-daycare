@@ -5,12 +5,15 @@ const EMPTY_FORM = {
   full_name: '', job_title: '', email: '', phone: '',
   id_number: '', employee_number: '', start_date: '',
   basic_salary: 0, uif_enabled: true, paye_enabled: false,
+  gender: '', race: '', disability: 'no', disability_description: '',
+  training_received: '', training_type: '', subsidised: 1,
 };
 
 export default function Staff() {
   const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
@@ -29,6 +32,40 @@ export default function Staff() {
   const set = (field: string, value: any) =>
     setForm(f => ({ ...f, [field]: value }));
 
+  const openAdd = () => {
+    setEditingId(null);
+    setForm({ ...EMPTY_FORM });
+    setFormError('');
+    setFormSuccess('');
+    setShowForm(true);
+  };
+
+  const openEdit = (s: any) => {
+    setEditingId(s.staff_id);
+    setForm({
+      full_name: s.full_name || '',
+      job_title: s.job_title || '',
+      email: s.email || '',
+      phone: s.phone || '',
+      id_number: s.id_number || '',
+      employee_number: s.employee_number || '',
+      start_date: s.start_date || '',
+      basic_salary: s.basic_salary || 0,
+      uif_enabled: !!s.uif_enabled,
+      paye_enabled: !!s.paye_enabled,
+      gender: s.gender || '',
+      race: s.race || '',
+      disability: s.disability || 'no',
+      disability_description: s.disability_description || '',
+      training_received: s.training_received || '',
+      training_type: s.training_type || '',
+      subsidised: s.subsidised ?? 1,
+    });
+    setFormError('');
+    setFormSuccess('');
+    setShowForm(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.full_name.trim()) { setFormError('Full name is required.'); return; }
@@ -36,19 +73,25 @@ export default function Staff() {
     setSaving(true);
     setFormError('');
     try {
-      await api.createStaff({
+      const payload = {
         ...form,
         basic_salary: Number(form.basic_salary) || 0,
         uif_enabled: form.uif_enabled ? 1 : 0,
         paye_enabled: form.paye_enabled ? 1 : 0,
         signature: `${form.full_name}\nLehakwe Daycare\n061 549 1701 | info@lehakwedaycare.co.za`,
-      });
-      setFormSuccess('Staff member added successfully.');
-      setForm({ ...EMPTY_FORM });
+      };
+      if (editingId) {
+        await api.updateStaff(editingId, payload);
+        setFormSuccess('Staff member updated successfully.');
+      } else {
+        await api.createStaff(payload);
+        setFormSuccess('Staff member added successfully.');
+        setForm({ ...EMPTY_FORM });
+      }
       loadStaff();
-      setTimeout(() => { setShowForm(false); setFormSuccess(''); }, 1500);
+      setTimeout(() => { setShowForm(false); setFormSuccess(''); setEditingId(null); }, 1500);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Failed to add staff. Please try again.');
+      setFormError(err instanceof Error ? err.message : 'Failed to save staff. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -71,7 +114,7 @@ export default function Staff() {
           <h2>Staff</h2>
           <p>Manage daycare staff records, salaries, and contact details.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => { setShowForm(true); setFormError(''); setFormSuccess(''); }}>
+        <button className="btn btn-primary" onClick={openAdd}>
           ➕ Add Staff Member
         </button>
       </div>
@@ -89,7 +132,7 @@ export default function Staff() {
             boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Add New Staff Member</h3>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{editingId ? 'Edit Staff Member' : 'Add New Staff Member'}</h3>
               <button onClick={() => setShowForm(false)}
                 style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer', color: '#6B7280' }}>✕</button>
             </div>
@@ -159,6 +202,68 @@ export default function Staff() {
                     style={{ width: 18, height: 18, cursor: 'pointer' }} />
                   <label htmlFor="paye" style={{ fontSize: '0.9rem', cursor: 'pointer' }}>PAYE Enabled</label>
                 </div>
+
+                {/* ── DSD Demographic Fields ── */}
+                <div style={{ gridColumn: '1/-1', borderTop: '1px solid #E5E7EB', paddingTop: 12, marginTop: 4 }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0B5FB3', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    📋 DSD Reporting Fields
+                  </div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Gender</label>
+                  <select style={inputStyle} value={(form as any).gender || ''}
+                    onChange={e => set('gender', e.target.value)}>
+                    <option value="">— Select —</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Race</label>
+                  <select style={inputStyle} value={(form as any).race || ''}
+                    onChange={e => set('race', e.target.value)}>
+                    <option value="">— Select —</option>
+                    <option value="african">African</option>
+                    <option value="coloured">Coloured</option>
+                    <option value="asian">Asian</option>
+                    <option value="white">White</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Disability</label>
+                  <select style={inputStyle} value={(form as any).disability || 'no'}
+                    onChange={e => set('disability', e.target.value)}>
+                    <option value="no">No</option>
+                    <option value="yes">Yes</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Subsidised</label>
+                  <select style={inputStyle} value={(form as any).subsidised !== undefined ? String((form as any).subsidised) : '1'}
+                    onChange={e => set('subsidised', Number(e.target.value))}>
+                    <option value="1">Yes</option>
+                    <option value="0">No</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Training Received</label>
+                  <input style={inputStyle} value={(form as any).training_received || ''}
+                    onChange={e => set('training_received', e.target.value)}
+                    placeholder="e.g. Yes, N/A" />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Training Type</label>
+                  <input style={inputStyle} value={(form as any).training_type || ''}
+                    onChange={e => set('training_type', e.target.value)}
+                    placeholder="e.g. ECD Level 5" />
+                </div>
               </div>
 
               {formError && (
@@ -181,7 +286,7 @@ export default function Staff() {
                     background: saving ? '#9CA3AF' : '#1A3D7C', color: 'white',
                     fontWeight: 700, fontSize: '0.95rem', cursor: saving ? 'default' : 'pointer',
                   }}>
-                  {saving ? 'Saving…' : 'Add Staff Member'}
+                  {saving ? 'Saving…' : editingId ? 'Update Staff' : 'Add Staff Member'}
                 </button>
                 <button type="button" onClick={() => setShowForm(false)}
                   style={{
@@ -215,6 +320,7 @@ export default function Staff() {
                 <th style={{ padding: '12px 8px' }}>Phone</th>
                 <th style={{ padding: '12px 8px' }}>Basic Salary</th>
                 <th style={{ padding: '12px 8px' }}>Status</th>
+                <th style={{ padding: '12px 8px', textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -237,6 +343,12 @@ export default function Staff() {
                     }}>
                       {s.active ? 'Active' : 'Inactive'}
                     </span>
+                  </td>
+                  <td style={{ padding: '12px 8px', textAlign: 'right' }}>
+                    <button onClick={() => openEdit(s)} style={{
+                      padding: '4px 12px', borderRadius: 6, border: '1px solid #E5E7EB',
+                      background: 'white', cursor: 'pointer', fontSize: '0.8rem',
+                    }}>✏️ Edit</button>
                   </td>
                 </tr>
               ))}

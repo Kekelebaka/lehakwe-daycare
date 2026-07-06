@@ -16,6 +16,13 @@ export interface StaffRow {
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
   notes?: string;
+  gender?: 'male' | 'female';
+  race?: 'african' | 'coloured' | 'asian' | 'white' | 'other';
+  disability?: 'yes' | 'no';
+  disability_description?: string;
+  training_received?: string;
+  training_type?: string;
+  subsidised: number;
   created_at: string;
   updated_at: string;
 }
@@ -59,6 +66,13 @@ export interface ChildRow {
   medical_notes?: string;
   allergies?: string;
   pickup_authorisation_notes?: string;
+  gender?: 'male' | 'female';
+  race?: 'african' | 'coloured' | 'asian' | 'white' | 'other';
+  disability?: 'yes' | 'no';
+  disability_description?: string;
+  income_category?: 'single_parent' | 'dual_parent' | 'other';
+  id_number?: string;
+  days_attended_current_month?: number;
   created_at: string;
   updated_at: string;
 }

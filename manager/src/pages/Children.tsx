@@ -3,11 +3,16 @@ import { api } from '../lib/api';
 
 const AGE_GROUPS = ['Baby (6-18 mo)', 'Toddler (18 mo-3 yr)', 'Grade R (3-4 yr)'];
 const STATUSES = ['active', 'inactive', 'graduated'];
+const GENDERS = ['', 'male', 'female'];
+const RACES = ['', 'african', 'coloured', 'asian', 'white', 'other'];
+const INCOME_CATS = ['', 'single_parent', 'dual_parent', 'other'];
 
 const EMPTY_FORM = {
   full_name: '', date_of_birth: '', age_group: AGE_GROUPS[0],
   enrolment_date: '', parent_id: '', emergency_contacts: '',
   medical_notes: '', allergies: '', pickup_notes: '', status: 'active',
+  gender: '', race: '', disability: 'no', disability_description: '',
+  income_category: '', id_number: '',
 };
 
 export default function Children() {
@@ -59,6 +64,12 @@ export default function Children() {
       allergies: child.allergies || '',
       pickup_notes: child.pickup_notes || '',
       status: child.status || 'active',
+      gender: child.gender || '',
+      race: child.race || '',
+      disability: child.disability || 'no',
+      disability_description: child.disability_description || '',
+      income_category: child.income_category || '',
+      id_number: child.id_number || '',
     });
     setFormError('');
     setFormSuccess('');
@@ -203,6 +214,72 @@ export default function Children() {
                     ))}
                   </select>
                 </div>
+
+                {/* ── DSD Demographic Fields ── */}
+                <div style={{ gridColumn: '1/-1', borderTop: '1px solid #E5E7EB', paddingTop: 12, marginTop: 4 }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0B5FB3', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    📋 DSD Reporting Fields
+                  </div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>ID Number</label>
+                  <input style={inputStyle} value={form.id_number}
+                    onChange={e => set('id_number', e.target.value)}
+                    placeholder="SA ID number" />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Gender</label>
+                  <select style={inputStyle} value={form.gender}
+                    onChange={e => set('gender', e.target.value)}>
+                    <option value="">— Select —</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Race</label>
+                  <select style={inputStyle} value={form.race}
+                    onChange={e => set('race', e.target.value)}>
+                    <option value="">— Select —</option>
+                    <option value="african">African</option>
+                    <option value="coloured">Coloured</option>
+                    <option value="asian">Asian</option>
+                    <option value="white">White</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Income Category</label>
+                  <select style={inputStyle} value={form.income_category}
+                    onChange={e => set('income_category', e.target.value)}>
+                    <option value="">— Select —</option>
+                    <option value="single_parent">1 Parent earning R0-R3500</option>
+                    <option value="dual_parent">2 Parents earning R0-R4500</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Disability</label>
+                  <select style={inputStyle} value={form.disability}
+                    onChange={e => set('disability', e.target.value)}>
+                    <option value="no">No</option>
+                    <option value="yes">Yes</option>
+                  </select>
+                </div>
+
+                {form.disability === 'yes' && (
+                  <div>
+                    <label style={labelStyle}>Disability Description</label>
+                    <input style={inputStyle} value={form.disability_description}
+                      onChange={e => set('disability_description', e.target.value)}
+                      placeholder="Describe the disability" />
+                  </div>
+                )}
 
                 <div style={{ gridColumn: '1/-1' }}>
                   <label style={labelStyle}>Emergency Contacts</label>

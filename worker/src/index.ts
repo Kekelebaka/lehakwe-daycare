@@ -151,8 +151,8 @@ export default {
       if (path === '/api/staff' && request.method === 'POST') {
         const data = await request.json() as Partial<StaffRow>;
         const id = db.uuid();
-        const stmt = `INSERT INTO staff (staff_id, full_name, job_title, basic_salary, active, signature, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'))`;
-        await db.DB.prepare(stmt).bind(id, data.full_name, data.job_title, data.basic_salary || 0, data.signature || '').run();
+        const stmt = `INSERT INTO staff (staff_id, full_name, id_number, employee_number, job_title, email, phone, start_date, basic_salary, uif_enabled, paye_enabled, active, signature, emergency_contact_name, emergency_contact_phone, notes, gender, race, disability, disability_description, training_received, training_type, subsidised, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`;
+        await db.DB.prepare(stmt).bind(id, data.full_name, data.id_number || null, data.employee_number || null, data.job_title, data.email || null, data.phone || null, data.start_date || null, data.basic_salary || 0, data.uif_enabled ?? 1, data.paye_enabled ?? 0, data.active ?? 1, data.signature || '', data.emergency_contact_name || null, data.emergency_contact_phone || null, data.notes || null, data.gender || null, data.race || null, data.disability || null, data.disability_description || null, data.training_received || null, data.training_type || null, data.subsidised ?? 1).run();
         
         await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'created', module_name: 'staff', record_id: id, metadata: JSON.stringify(data) });
         return Response.json({ ok: true, data: { staff_id: id } }, { headers: corsHeaders });
@@ -199,8 +199,8 @@ export default {
       if (path === '/api/children' && request.method === 'POST') {
         const data = await request.json() as Partial<ChildRow>;
         const id = db.uuid();
-        await db.DB.prepare(`INSERT INTO children (child_id, full_name, date_of_birth, age_group, enrolment_date, status, parent_id, emergency_contact_name, emergency_contact_phone, medical_notes, allergies, pickup_authorisation_notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`)
-          .bind(id, data.full_name, data.date_of_birth || null, data.age_group || null, data.enrolment_date || null, data.status || 'active', data.parent_id || null, data.emergency_contact_name || null, data.emergency_contact_phone || null, data.medical_notes || null, data.allergies || null, data.pickup_authorisation_notes || null).run();
+        await db.DB.prepare(`INSERT INTO children (child_id, full_name, date_of_birth, age_group, enrolment_date, status, parent_id, emergency_contact_name, emergency_contact_phone, medical_notes, allergies, pickup_authorisation_notes, gender, race, disability, disability_description, income_category, id_number, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`)
+          .bind(id, data.full_name, data.date_of_birth || null, data.age_group || null, data.enrolment_date || null, data.status || 'active', data.parent_id || null, data.emergency_contact_name || null, data.emergency_contact_phone || null, data.medical_notes || null, data.allergies || null, data.pickup_authorisation_notes || null, data.gender || null, data.race || null, data.disability || null, data.disability_description || null, data.income_category || null, data.id_number || null).run();
         await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'created', module_name: 'children', record_id: id, metadata: JSON.stringify(data) });
         return Response.json({ ok: true, data: { child_id: id } }, { headers: corsHeaders });
       }
@@ -209,8 +209,8 @@ export default {
       if (childUpdateMatch && request.method === 'PUT') {
         const id = childUpdateMatch[1];
         const data = await request.json() as Partial<ChildRow>;
-        await db.DB.prepare(`UPDATE children SET full_name = COALESCE(?, full_name), date_of_birth = COALESCE(?, date_of_birth), age_group = COALESCE(?, age_group), enrolment_date = COALESCE(?, enrolment_date), status = COALESCE(?, status), parent_id = COALESCE(?, parent_id), emergency_contact_name = COALESCE(?, emergency_contact_name), emergency_contact_phone = COALESCE(?, emergency_contact_phone), medical_notes = COALESCE(?, medical_notes), allergies = COALESCE(?, allergies), pickup_authorisation_notes = COALESCE(?, pickup_authorisation_notes), updated_at = datetime('now') WHERE child_id = ?`)
-          .bind(data.full_name ?? null, data.date_of_birth ?? null, data.age_group ?? null, data.enrolment_date ?? null, data.status ?? null, data.parent_id ?? null, data.emergency_contact_name ?? null, data.emergency_contact_phone ?? null, data.medical_notes ?? null, data.allergies ?? null, data.pickup_authorisation_notes ?? null, id).run();
+        await db.DB.prepare(`UPDATE children SET full_name = COALESCE(?, full_name), date_of_birth = COALESCE(?, date_of_birth), age_group = COALESCE(?, age_group), enrolment_date = COALESCE(?, enrolment_date), status = COALESCE(?, status), parent_id = COALESCE(?, parent_id), emergency_contact_name = COALESCE(?, emergency_contact_name), emergency_contact_phone = COALESCE(?, emergency_contact_phone), medical_notes = COALESCE(?, medical_notes), allergies = COALESCE(?, allergies), pickup_authorisation_notes = COALESCE(?, pickup_authorisation_notes), gender = COALESCE(?, gender), race = COALESCE(?, race), disability = COALESCE(?, disability), disability_description = COALESCE(?, disability_description), income_category = COALESCE(?, income_category), id_number = COALESCE(?, id_number), updated_at = datetime('now') WHERE child_id = ?`)
+          .bind(data.full_name ?? null, data.date_of_birth ?? null, data.age_group ?? null, data.enrolment_date ?? null, data.status ?? null, data.parent_id ?? null, data.emergency_contact_name ?? null, data.emergency_contact_phone ?? null, data.medical_notes ?? null, data.allergies ?? null, data.pickup_authorisation_notes ?? null, data.gender ?? null, data.race ?? null, data.disability ?? null, data.disability_description ?? null, data.income_category ?? null, data.id_number ?? null, id).run();
         await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'updated', module_name: 'children', record_id: id, metadata: JSON.stringify(data) });
         return Response.json({ ok: true }, { headers: corsHeaders });
       }
@@ -303,8 +303,51 @@ export default {
         return Response.json({ ok: true }, { headers: corsHeaders });
       }
 
+      // ── STAFF PUT (edit) ──
+      const staffPutMatch = path.match(/^\/api\/staff\/([^/]+)$/);
+      if (staffPutMatch && request.method === 'PUT') {
+        const id = staffPutMatch[1];
+        const data = await request.json() as Partial<StaffRow>;
+        await db.DB.prepare(`UPDATE staff SET
+          full_name = COALESCE(?, full_name),
+          id_number = COALESCE(?, id_number),
+          employee_number = COALESCE(?, employee_number),
+          job_title = COALESCE(?, job_title),
+          email = COALESCE(?, email),
+          phone = COALESCE(?, phone),
+          start_date = COALESCE(?, start_date),
+          basic_salary = COALESCE(?, basic_salary),
+          uif_enabled = COALESCE(?, uif_enabled),
+          paye_enabled = COALESCE(?, paye_enabled),
+          emergency_contact_name = COALESCE(?, emergency_contact_name),
+          emergency_contact_phone = COALESCE(?, emergency_contact_phone),
+          notes = COALESCE(?, notes),
+          gender = COALESCE(?, gender),
+          race = COALESCE(?, race),
+          disability = COALESCE(?, disability),
+          disability_description = COALESCE(?, disability_description),
+          training_received = COALESCE(?, training_received),
+          training_type = COALESCE(?, training_type),
+          subsidised = COALESCE(?, subsidised),
+          updated_at = datetime('now')
+        WHERE staff_id = ?`).bind(
+          data.full_name ?? null, data.id_number ?? null, data.employee_number ?? null,
+          data.job_title ?? null, data.email ?? null, data.phone ?? null,
+          data.start_date ?? null, data.basic_salary ?? null,
+          data.uif_enabled ?? null, data.paye_enabled ?? null,
+          data.emergency_contact_name ?? null, data.emergency_contact_phone ?? null,
+          data.notes ?? null,
+          data.gender ?? null, data.race ?? null, data.disability ?? null,
+          data.disability_description ?? null, data.training_received ?? null,
+          data.training_type ?? null, data.subsidised ?? null,
+          id
+        ).run();
+        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'updated', module_name: 'staff', record_id: id, metadata: JSON.stringify(data) });
+        return Response.json({ ok: true }, { headers: corsHeaders });
+      }
+
       // ── STAFF DELETE (soft) ──
-      const staffDeleteMatch = path.match(/^\/api\/staff\/(.+)$/);
+      const staffDeleteMatch = path.match(/^\/api\/staff\/([^/]+)$/);
       if (staffDeleteMatch && request.method === 'DELETE') {
         const id = staffDeleteMatch[1];
         await db.DB.prepare('UPDATE staff SET active = 0, updated_at = datetime(\'now\') WHERE staff_id = ?').bind(id).run();

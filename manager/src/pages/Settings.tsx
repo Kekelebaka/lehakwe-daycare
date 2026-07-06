@@ -6,6 +6,7 @@ export default function Settings() {
     daycare_name: '', daycare_address: '', npo_number: '',
     official_email: '', website: '', phone: '',
     uif_enabled: true, paye_enabled: false,
+    province: '', municipality: '', emis_number: '', manager_name: '', town: '', ward: '', fax_number: '',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -38,6 +39,13 @@ export default function Settings() {
         phone: settings.phone,
         uif_enabled: settings.uif_enabled ? 1 : 0,
         paye_enabled: settings.paye_enabled ? 1 : 0,
+        province: settings.province || '',
+        municipality: settings.municipality || '',
+        emis_number: settings.emis_number || '',
+        manager_name: settings.manager_name || '',
+        town: settings.town || '',
+        ward: settings.ward || '',
+        fax_number: settings.fax_number || '',
       });
       setSuccess('Settings saved successfully.');
       setTimeout(() => setSuccess(''), 3000);
@@ -135,6 +143,63 @@ export default function Settings() {
             <input style={inputStyle} value={settings.website}
               onChange={e => set('website', e.target.value)}
               placeholder="e.g. https://lehakwedaycare.co.za" />
+          </div>
+        </div>
+
+        <h3 style={{ fontSize: '1rem', fontWeight: 600, marginTop: 32, marginBottom: 16 }}>📋 DSD Reporting Details</h3>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div>
+            <label style={labelStyle}>Province</label>
+            <select style={inputStyle} value={settings.province || ''}
+              onChange={e => set('province', e.target.value)}>
+              <option value="">— Select —</option>
+              {['Eastern Cape','Free State','Gauteng','KwaZulu-Natal','Limpopo','Mpumalanga','North West','Northern Cape','Western Cape'].map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Municipality / District</label>
+            <input style={inputStyle} value={settings.municipality || ''}
+              onChange={e => set('municipality', e.target.value)}
+              placeholder="e.g. Mangaung" />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Town / City</label>
+            <input style={inputStyle} value={settings.town || ''}
+              onChange={e => set('town', e.target.value)}
+              placeholder="e.g. Bloemfontein" />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Ward</label>
+            <input style={inputStyle} value={settings.ward || ''}
+              onChange={e => set('ward', e.target.value)}
+              placeholder="e.g. Ward 4" />
+          </div>
+
+          <div>
+            <label style={labelStyle}>EMIS Number</label>
+            <input style={inputStyle} value={settings.emis_number || ''}
+              onChange={e => set('emis_number', e.target.value)}
+              placeholder="Education Management Info System number" />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Manager / Principal Name</label>
+            <input style={inputStyle} value={settings.manager_name || ''}
+              onChange={e => set('manager_name', e.target.value)}
+              placeholder="Full name for report signatures" />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Fax Number</label>
+            <input style={inputStyle} value={settings.fax_number || ''}
+              onChange={e => set('fax_number', e.target.value)}
+              placeholder="N/A if none" />
           </div>
         </div>
 
