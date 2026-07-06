@@ -1,24 +1,79 @@
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
+// ── Token management ──────────────────────────────────────────
+const TOKEN_KEY = 'lehakwe-jwt';
+const USER_KEY = 'lehakwe-user';
+
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+}
+
+export function getStoredUser(): any {
+  const raw = localStorage.getItem(USER_KEY);
+  return raw ? JSON.parse(raw) : null;
+}
+
+export function setStoredUser(user: any): void {
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+// ── API request with JWT ──────────────────────────────────────
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-  });
+  const token = getToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...((options?.headers as Record<string, string>) || {}),
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+
+  // Handle 401 — token expired or invalid
+  if (res.status === 401) {
+    clearToken();
+    // Force reload to login screen
+    window.location.reload();
+    throw new Error('Session expired — please log in again');
+  }
+
   const json = await res.json();
   if (!json.ok) throw new Error(json.error || 'Request failed');
   return json.data;
 }
 
+// ── Auth ──────────────────────────────────────────────────────
+export async function login(email: string, password: string): Promise<{ token: string; user: any }> {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Login failed');
+  return json.data;
+}
+
+// ── API methods ───────────────────────────────────────────────
 export const api = {
   getMe: () => request<any>('/me'),
   getDashboard: () => request<any>('/dashboard'),
-  
+
   // Staff
   getStaff: () => request<any[]>('/staff'),
   createStaff: (data: any) => request<any>('/staff', { method: 'POST', body: JSON.stringify(data) }),
   updateStaff: (id: string, data: any) => request<any>(`/staff/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  
+
   // Payslips
   getPayslips: (month?: number, year?: number) => {
     const q = new URLSearchParams();

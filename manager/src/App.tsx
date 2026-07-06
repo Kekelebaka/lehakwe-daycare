@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, createContext, useContext } from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import { api } from './lib/api';
+import { api, getToken, getStoredUser, clearToken } from './lib/api';
+import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
 import Inbox from './pages/Inbox';
 import Payslips from './pages/Payslips';
@@ -186,6 +187,15 @@ function AppLayout({ children, role, onClearRole }: { children: React.ReactNode;
           >
             Switch Role
           </button>
+          <button
+            onClick={() => { onClearRole(); }}
+            style={{
+              marginTop: 4, padding: '4px 8px', fontSize: '0.7rem', border: '1px solid #FECACA',
+              borderRadius: 6, background: '#FEF2F2', cursor: 'pointer', color: '#DC2626',
+            }}
+          >
+            Sign Out
+          </button>
         </div>
       </aside>
 
@@ -342,10 +352,23 @@ function AppLayout({ children, role, onClearRole }: { children: React.ReactNode;
 
 // ── Root App ──
 export default function App() {
+  const [authenticated, setAuthenticated] = useState<boolean>(() => !!getToken());
   const [role, setRole] = useState<UserRole | null>(() => {
     const stored = localStorage.getItem('lehakwe-role');
     return (stored as UserRole) || null;
   });
+
+  const handleLogin = (user: any) => {
+    setAuthenticated(true);
+    // Auto-set role from JWT
+    if (user.role === 'admin') {
+      setRole('admin');
+      localStorage.setItem('lehakwe-role', 'admin');
+    } else if (user.role === 'staff') {
+      setRole('staff');
+      localStorage.setItem('lehakwe-role', 'staff');
+    }
+  };
 
   const handleSetRole = (r: UserRole) => {
     setRole(r);
@@ -356,6 +379,18 @@ export default function App() {
     setRole(null);
     localStorage.removeItem('lehakwe-role');
   };
+
+  const handleLogout = () => {
+    clearToken();
+    setAuthenticated(false);
+    setRole(null);
+    localStorage.removeItem('lehakwe-role');
+  };
+
+  // Show login if not authenticated
+  if (!authenticated) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
 
   if (!role) {
     return <RoleSelector onSelect={handleSetRole} />;
@@ -370,7 +405,7 @@ export default function App() {
 
           {/* Main routes — with sidebar */}
           <Route path="/*" element={
-            <AppLayout role={role} onClearRole={handleClearRole}>
+            <AppLayout role={role} onClearRole={handleLogout}>
               <Routes>
                 <Route path="/" element={role === 'parent' ? <ParentDashboard /> : <Dashboard />} />
                 <Route path="/inbox" element={<Inbox />} />

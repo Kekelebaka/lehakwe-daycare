@@ -9,6 +9,7 @@ import {
   buildReplyRaw,
 } from './email-handler';
 import type { SendRequest } from './types';
+import { signJwt, verifyJwt, hashPassword, verifyPassword, type JwtPayload } from './auth';
 import type {
   StaffRow, PayslipRow, PayslipItemRow, ChildRow, ParentRow, ComplianceRow, DocumentRow, SettingRow, ApiResponse
 } from './manager-types';
@@ -20,6 +21,8 @@ interface Env {
   AUTO_REPLY_ENABLED: string;
   SENDING_DOMAIN: string;
   ALLOWED_ORIGIN: string;
+  JWT_SECRET: string;
+  AI: any;
 }
 
 export default {
@@ -108,25 +111,69 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
+    // ── Health check (public) ──
+    if (path === '/api/health') {
+      return Response.json({ ok: true, ts: Date.now() }, { headers: corsHeaders });
+    }
+
+    // ── POST /api/auth/login (public) ──
+    if (path === '/api/auth/login' && request.method === 'POST') {
+      const { email, password } = await request.json() as { email: string; password: string };
+      if (!email || !password) {
+        return Response.json({ ok: false, error: 'Email and password required' }, { status: 400, headers: corsHeaders });
+      }
+      const staff = await db.DB.prepare(
+        'SELECT * FROM staff WHERE email = ? AND active = 1 LIMIT 1'
+      ).bind(email).first<any>();
+      if (!staff || !staff.password_hash) {
+        return Response.json({ ok: false, error: 'Invalid credentials' }, { status: 401, headers: corsHeaders });
+      }
+      const valid = await verifyPassword(password, staff.password_hash);
+      if (!valid) {
+        return Response.json({ ok: false, error: 'Invalid credentials' }, { status: 401, headers: corsHeaders });
+      }
+      const role = (staff.job_title === 'Centre Manager' || staff.job_title === 'Daycare Principal') ? 'admin' : 'staff';
+      const payload: JwtPayload = {
+        sub: staff.staff_id,
+        role,
+        email: staff.email,
+        name: staff.full_name,
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 12 * 60 * 60, // 12h
+      };
+      const token = await signJwt(payload, env.JWT_SECRET);
+      return Response.json({ ok: true, data: { token, user: { id: staff.staff_id, name: staff.full_name, email: staff.email, role, signature: staff.signature || '' } } }, { headers: corsHeaders });
+    }
+
+    // ── Auth guard: all /api/* except /api/public/*, /api/health, /api/auth/* ──
+    let identity: JwtPayload | null = null;
+    const isPublic = path.startsWith('/api/public/') || path === '/api/health' || path.startsWith('/api/auth/');
+    if (path.startsWith('/api/') && !isPublic) {
+      const authHeader = request.headers.get('Authorization') || '';
+      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+      if (token) {
+        identity = await verifyJwt(token, env.JWT_SECRET);
+      }
+      if (!identity) {
+        return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
+      }
+    }
+
     try {
       // ── GET /api/me ──
       if (path === '/api/me' && request.method === 'GET') {
-        const email = request.headers.get('Cf-Access-Authenticated-User-Email');
-        if (!email) {
-          // Dev fallback — only works when Cloudflare Access is not enforcing
-          return Response.json({ ok: true, data: { id: 'dev-admin', name: 'Dev Admin', email: 'admin@lehakwedaycare.co.za', role: 'admin', signature: '', active: 1 } }, { headers: corsHeaders });
-        }
+        if (!identity) return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
         const staffRow = await db.DB.prepare(
-          'SELECT * FROM staff WHERE email = ? AND active = 1 LIMIT 1'
-        ).bind(email).first<any>();
+          'SELECT * FROM staff WHERE staff_id = ? AND active = 1 LIMIT 1'
+        ).bind(identity.sub).first<any>();
         if (!staffRow) {
-          return Response.json({ ok: false, error: 'Access denied — staff record not found for ' + email }, { status: 403, headers: corsHeaders });
+          return Response.json({ ok: false, error: 'Staff record not found' }, { status: 404, headers: corsHeaders });
         }
         return Response.json({ ok: true, data: {
           id: staffRow.staff_id,
           name: staffRow.full_name,
           email: staffRow.email,
-          role: (staffRow.job_title === 'Centre Manager' || staffRow.job_title === 'Daycare Principal') ? 'admin' : 'staff',
+          role: identity.role,
           signature: staffRow.signature || '',
           active: staffRow.active,
         }}, { headers: corsHeaders });
@@ -181,6 +228,22 @@ export default {
         
         await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'generated', module_name: 'payslips', record_id: id, metadata: JSON.stringify(data) });
         return Response.json({ ok: true, data: { payslip_id: id } }, { headers: corsHeaders });
+      }
+
+      // ── POST /api/payslips/:id/email ──
+      const pEmailMatch = path.match(/^\/api\/payslips\/(.+)\/email$/);
+      if (pEmailMatch && request.method === 'POST') {
+        await db.DB.prepare("UPDATE payslips SET status = 'emailed' WHERE payslip_id = ?").bind(pEmailMatch[1]).run();
+        await db.insertAudit({ id: db.uuid(), user_id: identity?.sub || 'admin', action: 'emailed', module_name: 'payslips', record_id: pEmailMatch[1], metadata: '{}' });
+        return Response.json({ ok: true, data: { status: 'emailed' } }, { headers: corsHeaders });
+      }
+
+      // ── POST /api/payslips/:id/paid ──
+      const pPaidMatch = path.match(/^\/api\/payslips\/(.+)\/paid$/);
+      if (pPaidMatch && request.method === 'POST') {
+        await db.DB.prepare("UPDATE payslips SET status = 'paid' WHERE payslip_id = ?").bind(pPaidMatch[1]).run();
+        await db.insertAudit({ id: db.uuid(), user_id: identity?.sub || 'admin', action: 'marked_paid', module_name: 'payslips', record_id: pPaidMatch[1], metadata: '{}' });
+        return Response.json({ ok: true, data: { status: 'paid' } }, { headers: corsHeaders });
       }
 
       // ── CHILDREN CRUD ──
@@ -775,10 +838,10 @@ export default {
         const threadId = url.searchParams.get('thread_id');
         if (!threadId) return Response.json({ ok: false, error: 'thread_id required' }, { status: 400, headers: corsHeaders });
 
-        const thread = await env.DB.prepare('SELECT * FROM inbox_messages WHERE message_id = ?').bind(threadId).first();
+        const thread = await env.DB.prepare('SELECT * FROM inbox_messages WHERE thread_id = ? ORDER BY created_at ASC LIMIT 1').bind(threadId).first<any>();
         if (!thread) return Response.json({ ok: false, error: 'Thread not found' }, { status: 404, headers: corsHeaders });
 
-        const replyPrompt = `A parent sent this email to Lehakwe Daycare:\n\nSubject: ${thread.subject}\nBody: ${thread.body}\n\nSuggest 3 brief, professional reply options. Number them 1, 2, 3. Each under 100 words. Tone: warm, helpful, South African. Include relevant details from the daycare (NPO 22910695, hours 06:30-17:30, address 12625 Phase 6 Bloemside 9323).`;
+        const replyPrompt = `A parent sent this email to Lehakwe Daycare:\n\nSubject: ${thread.subject}\nBody: ${thread.body_text}\n\nSuggest 3 brief, professional reply options. Number them 1, 2, 3. Each under 100 words. Tone: warm, helpful, South African. Include relevant details from the daycare (NPO 22910695, hours 06:30-17:30, address 12625 Phase 6 Bloemside 9323).`;
 
         const aiResponse = await env.AI.run('@cf/meta/llama-3.2-3b-instruct', {
           messages: [
@@ -798,12 +861,12 @@ export default {
         return Response.json({ ok: true, data: config.results }, { headers: corsHeaders });
       }
 
-      // ── POST /api/town/stats ──
+      // ── GET /api/town/stats ──
       if (path === '/api/town/stats' && request.method === 'GET') {
         const [children, staff, centres] = await Promise.all([
           env.DB.prepare('SELECT COUNT(*) as count FROM children WHERE status = \'active\'').first(),
           env.DB.prepare('SELECT COUNT(*) as count FROM staff WHERE active = 1').first(),
-          env.DB.prepare('SELECT COUNT(*) as count FROM settings').first(),
+          env.DB.prepare('SELECT COUNT(*) as count FROM town_config WHERE active = 1').first(),
         ]);
         return Response.json({ ok: true, data: {
           total_children: children?.count || 0,
@@ -818,14 +881,15 @@ export default {
       // PUBLIC PARENT PORTAL (no auth required)
       // ═══════════════════════════════════════════════════════
 
-      // ── GET /api/public/child/:id ──
+      // ── GET /api/public/child/:token ──
       if (path.startsWith('/api/public/child/') && request.method === 'GET') {
-        const childId = path.split('/').pop();
+        const portalToken = path.split('/').pop();
         const child = await env.DB.prepare(
-          `SELECT c.*, p.full_name as parent_name, p.phone as parent_phone, p.email as parent_email
+          `SELECT c.child_id, c.full_name, c.date_of_birth, c.age_group, c.status,
+                  p.full_name as parent_name, p.phone as parent_phone, p.email as parent_email
            FROM children c LEFT JOIN parents p ON c.parent_id = p.parent_id
-           WHERE c.child_id = ?`
-        ).bind(childId).first();
+           WHERE c.portal_token = ?`
+        ).bind(portalToken).first();
         if (!child) return Response.json({ ok: false, error: 'Child not found' }, { status: 404, headers: corsHeaders });
 
         // Get attendance this month
@@ -835,12 +899,12 @@ export default {
         const attendance = await env.DB.prepare(
           `SELECT * FROM attendance_records WHERE child_id = ? AND strftime('%m', date) = ? AND strftime('%Y', date) = ?
            ORDER BY date DESC`
-        ).bind(childId, String(month).padStart(2, '0'), String(year)).all();
+        ).bind((child as any).child_id, String(month).padStart(2, '0'), String(year)).all();
 
         // Get fee records
         const fees = await env.DB.prepare(
           `SELECT * FROM fee_records WHERE child_id = ? ORDER BY year DESC, month DESC LIMIT 12`
-        ).bind(childId).all();
+        ).bind((child as any).child_id).all();
 
         // Get published notices
         const notices = await env.DB.prepare(
@@ -864,10 +928,10 @@ export default {
         }}, { headers: corsHeaders });
       }
 
-      // ── GET /api/public/qr/:id ── (returns a simple QR URL)
+      // ── GET /api/public/qr/:token ── (returns a simple QR URL)
       if (path.startsWith('/api/public/qr/') && request.method === 'GET') {
-        const childId = path.split('/').pop();
-        return Response.json({ ok: true, data: { url: `https://app.lehakwedaycare.co.za/parent/${childId}` } }, { headers: corsHeaders });
+        const portalToken = path.split('/').pop();
+        return Response.json({ ok: true, data: { url: `https://app.lehakwedaycare.co.za/parent/${portalToken}` } }, { headers: corsHeaders });
       }
 
       // ═══════════════════════════════════════════════════════
