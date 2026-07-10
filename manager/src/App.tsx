@@ -229,97 +229,65 @@ function AppLayout({ children, role, onClearRole }: { children: React.ReactNode;
       </div>
 
       {/* ── Mobile Slide-Out Drawer ── */}
-      {drawerOpen && (
-        <div
-          className="drawer-overlay"
-          onClick={() => setDrawerOpen(false)}
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
-            zIndex: 200, animation: 'fadeIn 0.2s ease',
-          }}
-        />
-      )}
-      <div
-        ref={drawerRef}
-        className={`mobile-drawer ${drawerOpen ? 'open' : ''}`}
-        style={{
-          position: 'fixed', top: 0, left: 0, bottom: 0,
-          width: 300, maxWidth: '85vw', background: 'white',
-          zIndex: 201, transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
-          transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1)',
-          display: 'flex', flexDirection: 'column',
-          boxShadow: drawerOpen ? '4px 0 24px rgba(0,0,0,0.15)' : 'none',
-          overflowY: 'auto',
-        }}
-      >
+      {drawerOpen && <div onClick={() => setDrawerOpen(false)} style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+        zIndex: 9998,
+      }} />}
+      <div style={{
+        position: 'fixed', top: 0, left: 0, bottom: 0,
+        width: 300, maxWidth: '85vw', background: 'white',
+        zIndex: 9999,
+        transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
+        transition: 'transform 0.25s ease',
+        display: 'flex', flexDirection: 'column',
+        boxShadow: drawerOpen ? '4px 0 20px rgba(0,0,0,0.2)' : 'none',
+        overflowY: 'auto', WebkitOverflowScrolling: 'touch',
+        willChange: 'transform',
+      }}>
         {/* Drawer Header */}
-        <div style={{
-          background: 'linear-gradient(135deg, #0B5FB3 0%, #073B73 100%)',
-          padding: '24px 20px 20px', color: 'white',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <img src="https://i.imgur.com/0COuhlX.png" alt="Logo" style={{ height: 40, width: 'auto' }} />
-            <button
-              onClick={() => setDrawerOpen(false)}
-              aria-label="Close menu"
-              style={{
-                width: 32, height: 32, borderRadius: 8, border: 'none',
-                background: 'rgba(255,255,255,0.2)', color: 'white',
-                fontSize: '1.1rem', cursor: 'pointer', display: 'flex',
-                alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              ✕
-            </button>
+        <div style={{ background: 'linear-gradient(135deg, #0B5FB3, #073B73)', padding: '20px 16px 16px', color: 'white' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <img src="https://i.imgur.com/0COuhlX.png" alt="Logo" style={{ height: 36 }} />
+            <button onClick={() => setDrawerOpen(false)} style={{
+              width: 30, height: 30, borderRadius: 8, border: 'none',
+              background: 'rgba(255,255,255,0.2)', color: 'white',
+              fontSize: '1rem', cursor: 'pointer', display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+            }}>✕</button>
           </div>
-          <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>Lehakwe Manager</div>
-          <div style={{ fontSize: '0.72rem', opacity: 0.8, marginTop: 2 }}>Powered by ChiefCare</div>
+          <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>Lehakwe Manager</div>
+          <div style={{ fontSize: '0.68rem', opacity: 0.8, marginTop: 1 }}>Powered by ChiefCare</div>
           <div style={{
-            marginTop: 14, display: 'flex', alignItems: 'center', gap: 10,
+            marginTop: 12, display: 'flex', alignItems: 'center', gap: 10,
             background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '10px 12px',
           }}>
             <div style={{
-              width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.25)',
+              width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,255,255,0.25)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '0.9rem', fontWeight: 700,
-            }}>
-              {(user?.name || 'A')[0]}
-            </div>
+              fontSize: '0.85rem', fontWeight: 700,
+            }}>{(user?.name || 'A')[0]}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {user?.name || 'Admin'}
-              </div>
-              <div style={{ fontSize: '0.68rem', opacity: 0.8 }}>
-                {roleInfo.emoji} {roleInfo.label}
-              </div>
+              <div style={{ fontWeight: 600, fontSize: '0.82rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name || 'Admin'}</div>
+              <div style={{ fontSize: '0.65rem', opacity: 0.8 }}>{roleInfo.emoji} {roleInfo.label}</div>
             </div>
           </div>
         </div>
 
-        {/* Navigation Items */}
-        <nav style={{ flex: 1, padding: '8px 12px' }}>
-          <div style={{ fontSize: '0.65rem', fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '12px 8px 6px' }}>
-            Navigation
-          </div>
+        {/* Nav Items */}
+        <nav style={{ flex: 1, padding: '6px 10px' }}>
+          <div style={{ fontSize: '0.62rem', fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '10px 8px 4px' }}>Navigation</div>
           {navItems.map(item => {
-            const isActive = location.pathname === item.path;
+            const active = location.pathname === item.path;
             return (
-              <Link
-                key={item.path}
-                to={item.path}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '11px 12px', borderRadius: 10,
-                  textDecoration: 'none', marginBottom: 2,
-                  background: isActive ? '#EFF6FF' : 'transparent',
-                  color: isActive ? '#0B5FB3' : '#374151',
-                  fontWeight: isActive ? 600 : 400,
-                  fontSize: '0.88rem',
-                  transition: 'all 0.15s',
-                  borderLeft: isActive ? '3px solid #0B5FB3' : '3px solid transparent',
-                }}
-              >
-                <span style={{ fontSize: '1.15rem', width: 24, textAlign: 'center' }}>{item.icon}</span>
+              <Link key={item.path} to={item.path} style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '10px 12px', borderRadius: 10, textDecoration: 'none', marginBottom: 1,
+                background: active ? '#EFF6FF' : 'transparent',
+                color: active ? '#0B5FB3' : '#374151',
+                fontWeight: active ? 600 : 400, fontSize: '0.85rem',
+                borderLeft: active ? '3px solid #0B5FB3' : '3px solid transparent',
+              }}>
+                <span style={{ fontSize: '1.1rem', width: 22, textAlign: 'center' }}>{item.icon}</span>
                 {item.label}
               </Link>
             );
@@ -327,34 +295,20 @@ function AppLayout({ children, role, onClearRole }: { children: React.ReactNode;
         </nav>
 
         {/* Drawer Footer */}
-        <div style={{ padding: '12px 16px 16px', borderTop: '1px solid #E5E7EB' }}>
-          <button
-            onClick={() => { onClearRole(); setDrawerOpen(false); }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '10px 14px', width: '100%', borderRadius: 10,
-              border: '1px solid #E5E7EB', background: '#F9FAFB',
-              cursor: 'pointer', fontSize: '0.82rem', color: '#6B7280',
-              fontWeight: 500, marginBottom: 6,
-            }}
-          >
-            <span>🔄</span> Switch Role
-          </button>
-          <button
-            onClick={() => { onClearRole(); setDrawerOpen(false); }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '10px 14px', width: '100%', borderRadius: 10,
-              border: '1px solid #FECACA', background: '#FEF2F2',
-              cursor: 'pointer', fontSize: '0.82rem', color: '#DC2626',
-              fontWeight: 500,
-            }}
-          >
-            <span>🚪</span> Sign Out
-          </button>
-          <div style={{ textAlign: 'center', fontSize: '0.6rem', color: '#D1D5DB', marginTop: 10 }}>
-            Lehakwe Daycare · NPO 229-695
-          </div>
+        <div style={{ padding: '10px 14px 14px', borderTop: '1px solid #E5E7EB' }}>
+          <button onClick={() => { onClearRole(); setDrawerOpen(false); }} style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '9px 14px', width: '100%', borderRadius: 10,
+            border: '1px solid #E5E7EB', background: '#F9FAFB',
+            cursor: 'pointer', fontSize: '0.8rem', color: '#6B7280', marginBottom: 5,
+          }}><span>🔄</span> Switch Role</button>
+          <button onClick={() => { onClearRole(); setDrawerOpen(false); }} style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '9px 14px', width: '100%', borderRadius: 10,
+            border: '1px solid #FECACA', background: '#FEF2F2',
+            cursor: 'pointer', fontSize: '0.8rem', color: '#DC2626',
+          }}><span>🚪</span> Sign Out</button>
+          <div style={{ textAlign: 'center', fontSize: '0.58rem', color: '#D1D5DB', marginTop: 8 }}>Lehakwe Daycare · NPO 229-695</div>
         </div>
       </div>
 
