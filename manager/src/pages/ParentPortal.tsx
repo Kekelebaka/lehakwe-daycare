@@ -70,7 +70,7 @@ export default function ParentPortal() {
     doc.setFontSize(18);
     doc.text('Lehakwe Daycare', 14, 18);
     doc.setFontSize(9);
-    doc.text('NPO 22910695 • 12625 Phase 6, Bloemside 9323', 14, 25);
+    doc.text('NPO 229-695 • 12625 Phase 6, Bloemside 9323', 14, 25);
     doc.text(`Fee Statement • Generated ${new Date().toLocaleDateString('en-ZA')}`, 14, 31);
     // Child info
     doc.setTextColor(0, 0, 0);
@@ -289,7 +289,7 @@ export default function ParentPortal() {
 
       {/* Footer */}
       <div style={{ textAlign: 'center', padding: '16px', color: '#9CA3AF', fontSize: '0.7rem', borderTop: '1px solid #E5E7EB' }}>
-        {settings?.centre_name || 'Lehakwe Daycare'} • NPO {settings?.npo_number || '22910695'}
+        {settings?.centre_name || 'Lehakwe Daycare'} • NPO {settings?.npo_number || '229-695'}
         <br />
         <a href={`https://wa.me/276****1701?text=Hi%20Lehakwe%20Daycare%2C%20I'm%20enquiring%20about%20${encodeURIComponent(child.full_name)}`}
           style={{ color: '#0B5FB3', textDecoration: 'none', fontWeight: 600 }}>

@@ -121,7 +121,7 @@ export default function Settings() {
             <label style={labelStyle}>NPO Number</label>
             <input style={inputStyle} value={settings.npo_number}
               onChange={e => set('npo_number', e.target.value)}
-              placeholder="e.g. 22910695" />
+              placeholder="e.g. 229-695" />
           </div>
 
           <div>

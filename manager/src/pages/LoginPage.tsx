@@ -114,7 +114,7 @@ export default function LoginPage({ onLogin }: { onLogin: (user: any) => void })
         </form>
 
         <div style={{ textAlign: 'center', marginTop: 24, fontSize: '0.75rem', color: '#9CA3AF' }}>
-          Powered by ChiefCare · NPO 22910695
+          Powered by ChiefCare · NPO 229-695
         </div>
       </div>
     </div>

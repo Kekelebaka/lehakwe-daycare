@@ -44,7 +44,7 @@ function addBranding(doc: jsPDF, title: string, subtitle?: string) {
   doc.text('LEHAKWE DAYCARE', 38, 15);
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  doc.text('NPO 22910695 | 12625 Phase 6, Bloemside 9323 | 061 549 1701', 38, 22);
+  doc.text('NPO 229-695 | 12625 Phase 6, Bloemside 9323 | 061 549 1701', 38, 22);
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   doc.text(title, 38, 32);

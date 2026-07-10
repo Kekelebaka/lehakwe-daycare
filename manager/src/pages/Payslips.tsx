@@ -142,7 +142,7 @@ export default function Payslips() {
                 <h1 style={{ color: '#0B5FB3', fontSize: '1.5rem', margin: 0 }}>Lehakwe Daycare</h1>
                 <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#6B7280' }}>
                   12625 Phase 6, Bloemfontein<br />
-                  NPO No: 22910695<br />
+                  NPO No: 229-695<br />
                   info@lehakwedaycare.co.za | https://lehakwedaycare.co.za
                 </p>
               </div>
