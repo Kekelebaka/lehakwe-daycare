@@ -90,22 +90,19 @@ const ROLE_BOTTOM_NAV: Record<UserRole, { path: string; label: string; icon: str
     { path: '/', label: 'Home', icon: '📊' },
     { path: '/inbox', label: 'Inbox', icon: '✉️' },
     { path: '/children', label: 'Children', icon: '👶' },
-    { path: '/payslips', label: 'Payslips', icon: '💰' },
-    { path: '/reports', label: 'Reports', icon: '📑' },
+    { path: '/attendance', label: 'Attend', icon: '📋' },
   ],
   staff: [
     { path: '/', label: 'Home', icon: '📊' },
     { path: '/attendance', label: 'Attendance', icon: '📋' },
     { path: '/daily-logs', label: 'Logs', icon: '📝' },
     { path: '/inbox', label: 'Inbox', icon: '✉️' },
-    { path: '/payslips', label: 'Payslips', icon: '💸' },
   ],
   parent: [
     { path: '/', label: 'My Child', icon: '👶' },
     { path: '/attendance', label: 'Attendance', icon: '📋' },
     { path: '/fees', label: 'Fees', icon: '💰' },
     { path: '/notices', label: 'Notices', icon: '📢' },
-    { path: '/milestones', label: 'Milestones', icon: '🎯' },
   ],
 };
 
@@ -120,10 +117,8 @@ function AppLayout({ children, role, onClearRole }: { children: React.ReactNode;
   const location = useLocation();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [showMore, setShowMore] = useState(false);
-  const [showRoleMenu, setShowRoleMenu] = useState(false);
-  const moreRef = useRef<HTMLDivElement>(null);
-  const roleMenuRef = useRef<HTMLDivElement>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const drawerRef = useRef<HTMLDivElement>(null);
 
   const navItems = ROLE_NAV_MAP[role];
   const bottomNav = ROLE_BOTTOM_NAV[role];
@@ -133,18 +128,20 @@ function AppLayout({ children, role, onClearRole }: { children: React.ReactNode;
     api.getMe().then(setUser).catch(() => setUser({ name: 'Admin', role: 'admin' })).finally(() => setLoading(false));
   }, []);
 
+  // Close drawer on route change
   useEffect(() => {
-    setShowMore(false);
+    setDrawerOpen(false);
   }, [location.pathname]);
 
+  // Lock body scroll when drawer open
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setShowMore(false);
-      if (roleMenuRef.current && !roleMenuRef.current.contains(e.target as Node)) setShowRoleMenu(false);
+    if (drawerOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
     }
-    if (showMore || showRoleMenu) document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [showMore, showRoleMenu]);
+    return () => { document.body.style.overflow = ''; };
+  }, [drawerOpen]);
 
   if (loading) return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: 12 }}>
@@ -201,53 +198,162 @@ function AppLayout({ children, role, onClearRole }: { children: React.ReactNode;
 
       {/* ── Mobile Header ── */}
       <div className="mobile-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <img src="https://i.imgur.com/0COuhlX.png" alt="Logo" style={{ height: 32, width: 'auto' }} />
-          <div>
-            <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#073B73' }}>Lehakwe Manager</div>
+        <button
+          onClick={() => setDrawerOpen(true)}
+          aria-label="Open menu"
+          style={{
+            width: 40, height: 40, borderRadius: 10, border: 'none',
+            background: '#F3F4F6', display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: 4,
+            cursor: 'pointer', padding: 8, flexShrink: 0,
+          }}
+        >
+          <span style={{ width: 18, height: 2, background: '#073B73', borderRadius: 1 }} />
+          <span style={{ width: 18, height: 2, background: '#073B73', borderRadius: 1 }} />
+          <span style={{ width: 18, height: 2, background: '#073B73', borderRadius: 1 }} />
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+          <img src="https://i.imgur.com/0COuhlX.png" alt="Logo" style={{ height: 32, width: 'auto', flexShrink: 0 }} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#073B73', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Lehakwe Manager</div>
             <div style={{ fontSize: '0.65rem', color: roleInfo.color, fontWeight: 500 }}>{roleInfo.emoji} {roleInfo.label}</div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div ref={roleMenuRef} style={{ position: 'relative' }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: '50%', background: roleInfo.color,
+          color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '0.8rem', fontWeight: 600, flexShrink: 0,
+        }}>
+          {(user?.name || 'A')[0]}
+        </div>
+      </div>
+
+      {/* ── Mobile Slide-Out Drawer ── */}
+      {drawerOpen && (
+        <div
+          className="drawer-overlay"
+          onClick={() => setDrawerOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+            zIndex: 200, animation: 'fadeIn 0.2s ease',
+          }}
+        />
+      )}
+      <div
+        ref={drawerRef}
+        className={`mobile-drawer ${drawerOpen ? 'open' : ''}`}
+        style={{
+          position: 'fixed', top: 0, left: 0, bottom: 0,
+          width: 300, maxWidth: '85vw', background: 'white',
+          zIndex: 201, transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1)',
+          display: 'flex', flexDirection: 'column',
+          boxShadow: drawerOpen ? '4px 0 24px rgba(0,0,0,0.15)' : 'none',
+          overflowY: 'auto',
+        }}
+      >
+        {/* Drawer Header */}
+        <div style={{
+          background: 'linear-gradient(135deg, #0B5FB3 0%, #073B73 100%)',
+          padding: '24px 20px 20px', color: 'white',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <img src="https://i.imgur.com/0COuhlX.png" alt="Logo" style={{ height: 40, width: 'auto' }} />
             <button
-              onClick={() => setShowRoleMenu(!showRoleMenu)}
+              onClick={() => setDrawerOpen(false)}
+              aria-label="Close menu"
               style={{
-                width: 32, height: 32, borderRadius: '50%', background: roleInfo.color, color: 'white',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 600,
-                border: 'none', cursor: 'pointer',
+                width: 32, height: 32, borderRadius: 8, border: 'none',
+                background: 'rgba(255,255,255,0.2)', color: 'white',
+                fontSize: '1.1rem', cursor: 'pointer', display: 'flex',
+                alignItems: 'center', justifyContent: 'center',
               }}
             >
-              {(user?.name || 'A')[0]}
+              ✕
             </button>
-            {showRoleMenu && (
-              <div style={{
-                position: 'absolute', top: '100%', right: 0, marginTop: 4,
-                background: 'white', borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                padding: 8, minWidth: 160, zIndex: 100,
-              }}>
-                <div style={{ padding: '6px 12px', fontSize: '0.7rem', color: '#9CA3AF', fontWeight: 500 }}>
-                  Current Role
-                </div>
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
-                  background: '#F3F4F6', borderRadius: 8, margin: '0 4px',
-                }}>
-                  <span>{roleInfo.emoji}</span>
-                  <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{roleInfo.label}</span>
-                </div>
-                <div style={{ borderTop: '1px solid #E5E7EB', margin: '4px 0' }} />
-                <button
-                  onClick={() => { onClearRole(); setShowRoleMenu(false); }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', width: '100%',
-                    border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.85rem', color: '#DC2626',
-                  }}
-                >
-                  🔄 Switch Role
-                </button>
+          </div>
+          <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>Lehakwe Manager</div>
+          <div style={{ fontSize: '0.72rem', opacity: 0.8, marginTop: 2 }}>Powered by ChiefCare</div>
+          <div style={{
+            marginTop: 14, display: 'flex', alignItems: 'center', gap: 10,
+            background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '10px 12px',
+          }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '0.9rem', fontWeight: 700,
+            }}>
+              {(user?.name || 'A')[0]}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {user?.name || 'Admin'}
               </div>
-            )}
+              <div style={{ fontSize: '0.68rem', opacity: 0.8 }}>
+                {roleInfo.emoji} {roleInfo.label}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation Items */}
+        <nav style={{ flex: 1, padding: '8px 12px' }}>
+          <div style={{ fontSize: '0.65rem', fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '12px 8px 6px' }}>
+            Navigation
+          </div>
+          {navItems.map(item => {
+            const isActive = location.pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '11px 12px', borderRadius: 10,
+                  textDecoration: 'none', marginBottom: 2,
+                  background: isActive ? '#EFF6FF' : 'transparent',
+                  color: isActive ? '#0B5FB3' : '#374151',
+                  fontWeight: isActive ? 600 : 400,
+                  fontSize: '0.88rem',
+                  transition: 'all 0.15s',
+                  borderLeft: isActive ? '3px solid #0B5FB3' : '3px solid transparent',
+                }}
+              >
+                <span style={{ fontSize: '1.15rem', width: 24, textAlign: 'center' }}>{item.icon}</span>
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Drawer Footer */}
+        <div style={{ padding: '12px 16px 16px', borderTop: '1px solid #E5E7EB' }}>
+          <button
+            onClick={() => { onClearRole(); setDrawerOpen(false); }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '10px 14px', width: '100%', borderRadius: 10,
+              border: '1px solid #E5E7EB', background: '#F9FAFB',
+              cursor: 'pointer', fontSize: '0.82rem', color: '#6B7280',
+              fontWeight: 500, marginBottom: 6,
+            }}
+          >
+            <span>🔄</span> Switch Role
+          </button>
+          <button
+            onClick={() => { onClearRole(); setDrawerOpen(false); }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '10px 14px', width: '100%', borderRadius: 10,
+              border: '1px solid #FECACA', background: '#FEF2F2',
+              cursor: 'pointer', fontSize: '0.82rem', color: '#DC2626',
+              fontWeight: 500,
+            }}
+          >
+            <span>🚪</span> Sign Out
+          </button>
+          <div style={{ textAlign: 'center', fontSize: '0.6rem', color: '#D1D5DB', marginTop: 10 }}>
+            Lehakwe Daycare · NPO 229-695
           </div>
         </div>
       </div>
@@ -264,74 +370,47 @@ function AppLayout({ children, role, onClearRole }: { children: React.ReactNode;
           return (
             <Link key={item.path} to={item.path} style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-              padding: '6px 12px', textDecoration: 'none',
-              color: isActive ? '#0B5FB3' : '#6B7280', fontSize: '0.65rem', fontWeight: isActive ? 600 : 500,
+              padding: '6px 8px', textDecoration: 'none', flex: 1,
+              color: isActive ? '#0B5FB3' : '#6B7280', fontSize: '0.6rem',
+              fontWeight: isActive ? 600 : 500,
+              position: 'relative',
             }}>
-              <span style={{ fontSize: '1.3rem' }}>{item.icon}</span>
-              <span>{item.label}</span>
+              {isActive && (
+                <div style={{
+                  position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
+                  width: 24, height: 2, borderRadius: 1, background: '#0B5FB3',
+                }} />
+              )}
+              <span style={{ fontSize: '1.25rem', lineHeight: 1 }}>{item.icon}</span>
+              <span style={{ lineHeight: 1 }}>{item.label}</span>
             </Link>
           );
         })}
-        {/* More button */}
-        <div ref={moreRef} style={{ position: 'relative' }}>
-          <button
-            onClick={() => setShowMore(!showMore)}
-            style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-              padding: '6px 12px', border: 'none', background: 'none', cursor: 'pointer',
-              color: showMore ? '#0B5FB3' : '#6B7280', fontSize: '0.65rem', fontWeight: 500,
-            }}
-          >
-            <span style={{ fontSize: '1.3rem' }}>⋯</span>
-            <span>More</span>
-          </button>
-          {showMore && (
-            <div style={{
-              position: 'absolute', bottom: '100%', right: 0, marginBottom: 8,
-              background: 'white', borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-              padding: 8, minWidth: 180, zIndex: 100,
-            }}>
-              {navItems.filter(n => !bottomNav.slice(0, 4).some(b => b.path === n.path)).map(n => (
-                <Link key={n.path} to={n.path} style={{
-                  display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-                  borderRadius: 8, textDecoration: 'none',
-                  color: location.pathname === n.path ? '#0B5FB3' : '#374151',
-                  fontWeight: location.pathname === n.path ? 600 : 400, fontSize: '0.85rem',
-                  background: location.pathname === n.path ? '#EFF6FF' : 'transparent',
-                }} onClick={() => setShowMore(false)}>
-                  <span>{n.icon}</span> {n.label}
-                </Link>
-              ))}
-              <div style={{ borderTop: '1px solid #E5E7EB', marginTop: 4, paddingTop: 4 }}>
-                <button
-                  onClick={() => { onClearRole(); setShowMore(false); }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', width: '100%',
-                    border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.85rem', color: '#DC2626',
-                  }}
-                >
-                  🔄 Switch Role
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        {/* More button → opens drawer */}
+        <button
+          onClick={() => setDrawerOpen(true)}
+          style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+            padding: '6px 8px', border: 'none', background: 'none', cursor: 'pointer',
+            color: '#6B7280', fontSize: '0.6rem', fontWeight: 500, flex: 1,
+          }}
+        >
+          <span style={{ fontSize: '1.25rem', lineHeight: 1 }}>☰</span>
+          <span style={{ lineHeight: 1 }}>More</span>
+        </button>
       </nav>
-
-      {/* ── Mobile More Drawer ── */}
-      {showMore && <div onClick={() => setShowMore(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 90 }} />}
-      {showRoleMenu && <div onClick={() => setShowRoleMenu(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.1)', zIndex: 90 }} />}
 
       <style>{`
         .mobile-header { display: none; }
         .bottom-nav { display: none; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @media (max-width: 767px) {
           .app-layout { flex-direction: column; }
           .sidebar { display: none !important; }
           .mobile-header {
             display: flex !important;
-            align-items: center; justify-content: space-between;
-            padding: 12px 16px;
+            align-items: center; gap: 12px;
+            padding: 10px 14px;
             background: white; border-bottom: 1px solid #E5E7EB;
             position: sticky; top: 0; z-index: 50;
           }
@@ -360,7 +439,6 @@ export default function App() {
 
   const handleLogin = (user: any) => {
     setAuthenticated(true);
-    // Auto-set role from JWT
     if (user.role === 'admin') {
       setRole('admin');
       localStorage.setItem('lehakwe-role', 'admin');
@@ -387,7 +465,6 @@ export default function App() {
     localStorage.removeItem('lehakwe-role');
   };
 
-  // Show login if not authenticated
   if (!authenticated) {
     return <LoginPage onLogin={handleLogin} />;
   }
@@ -400,10 +477,7 @@ export default function App() {
     <RoleContext.Provider value={{ role, setRole: handleSetRole, clearRole: handleClearRole }}>
       <BrowserRouter>
         <Routes>
-          {/* Parent Portal — standalone, no sidebar */}
           <Route path="/parent/:childId" element={<ParentPortal />} />
-
-          {/* Main routes — with sidebar */}
           <Route path="/*" element={
             <AppLayout role={role} onClearRole={handleLogout}>
               <Routes>
