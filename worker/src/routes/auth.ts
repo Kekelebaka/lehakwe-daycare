@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { AppEnv } from '../env';
 import { initDb } from '../db';
 import { signJwt, verifyPassword, type JwtPayload } from '../auth';
-import { sessionCookie, clearedCookie, isRateLimited, bumpRateLimit, clearRateLimit, verifyTurnstile } from '../lib';
+import { sessionCookie, clearedCookie, cookieDomain, isRateLimited, bumpRateLimit, clearRateLimit, verifyTurnstile } from '../lib';
 
 const r = new Hono<AppEnv>();
 
@@ -46,13 +46,13 @@ r.post('/auth/login', async (c) => {
   const now = Math.floor(Date.now() / 1000);
   const payload: JwtPayload = { sub: staff.staff_id, role, email: staff.email, name: staff.full_name, iat: now, exp: now + maxAge };
   const token = await signJwt(payload, c.env.JWT_SECRET);
-  c.header('Set-Cookie', sessionCookie(token, maxAge));
+  c.header('Set-Cookie', sessionCookie(token, maxAge, cookieDomain(c.env)));
   return c.json({ ok: true, data: { token, user: { id: staff.staff_id, name: staff.full_name, email: staff.email, role, signature: staff.signature || '' } } });
 });
 
 // POST /api/auth/logout (public)
 r.post('/auth/logout', (c) => {
-  c.header('Set-Cookie', clearedCookie());
+  c.header('Set-Cookie', clearedCookie(cookieDomain(c.env)));
   return c.json({ ok: true, data: { loggedOut: true } });
 });
 

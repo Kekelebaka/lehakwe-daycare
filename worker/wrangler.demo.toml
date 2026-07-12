@@ -1,0 +1,52 @@
+# Ubuntu Daycare OS — DEMO worker config (second instance; NOT Lehakwe).
+# Same worker code (src/index.ts), pointed at a separate demo D1 + R2, with
+# DEMO_MODE on (fixed parent OTP 123456) and NO outbound secrets (email/SMS
+# neutered — the demo never emails real people). Cookies scoped to ubuntutown.co.za.
+#
+# Provision (Hermes):
+#   wrangler d1 create ubuntu-demo-db            # paste the id below
+#   wrangler r2 bucket create ubuntu-demo-media
+#   # apply schema + migrations 002..012 + seed-demo.sql to ubuntu-demo-db
+#   wrangler secret put JWT_SECRET --config wrangler.demo.toml   # any strong random value
+#   wrangler deploy --config wrangler.demo.toml
+
+name = "ubuntu-demo-worker"
+main = "src/index.ts"
+compatibility_date = "2025-06-09"
+account_id = "c63d3d6d8c17db7487ab40b81d5e29d1"
+
+# Custom domain (demo-api.daycareos.ubuntutown.co.za) is attached AFTER deploy via the
+# Cloudflare API (the deploy token lacks DNS scope). Left commented so `wrangler deploy`
+# only uploads the script and can't fail on a DNS step.
+# routes = [
+#   { pattern = "demo-api.daycareos.ubuntutown.co.za", custom_domain = true }
+# ]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ubuntu-demo-db"
+database_id = "240411a5-8429-47ea-ae1b-2c50cf627cb2"
+
+# Demo has no inbound email; EMAIL_STORE binding is required by the code, so we
+# point it at the same demo media bucket (unused). MEDIA holds demo photos.
+[[r2_buckets]]
+binding = "EMAIL_STORE"
+bucket_name = "ubuntu-demo-media"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "ubuntu-demo-media"
+
+[ai]
+binding = "AI"
+
+[vars]
+FORWARD_EMAILS = "demo@daycareos.ubuntutown.co.za"
+AUTO_REPLY_ENABLED = "false"
+SENDING_DOMAIN = "daycareos.ubuntutown.co.za"
+ALLOWED_ORIGIN = "https://demo.daycareos.ubuntutown.co.za"
+COOKIE_DOMAIN = ".ubuntutown.co.za"
+DEMO_MODE = "true"
+
+# NB: no RESEND_API_KEY / SMS_PROVIDER_* on the demo → all outbound is inert.
+# No [triggers] cron on the demo (the notification outbox stays quiet).

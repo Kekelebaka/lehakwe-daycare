@@ -15,6 +15,8 @@ export interface Env {
   RATE_LIMIT?: KVNamespace;   // optional: enables login rate-limiting
   SMS_PROVIDER_URL?: string;  // optional: parent OTP delivery via SMS/WhatsApp gateway
   SMS_PROVIDER_KEY?: string;
+  COOKIE_DOMAIN?: string;     // per-instance cookie domain (demo/tenants); defaults to Lehakwe
+  DEMO_MODE?: string;         // 'true' on the demo instance: fixed parent OTP, no real sends
   AI: any;
 }
 
