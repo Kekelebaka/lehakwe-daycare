@@ -3,36 +3,47 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name='theme-color' content='#0B5FB3' />
+  <meta name='theme-color' content='#4B1F78' />
   <meta name='apple-mobile-web-app-capable' content='yes' />
   <meta name='apple-mobile-web-app-status-bar-style' content='black-translucent' />
-  <meta name='apple-mobile-web-app-title' content='Lehakwe' />
-  <meta name='description' content='ECD Operating System for South African Daycares' />
-  <title>Lehakwe Daycare Manager</title>
+  <meta name='apple-mobile-web-app-title' content='Ubuntu Daycare OS' />
+  <meta name='description' content='Ubuntu Daycare OS — the operating system for African daycare centres. Powered by ChiefOps.' />
+  <title>Ubuntu Daycare OS</title>
   <link rel='manifest' href='/manifest.json' />
   <link rel='apple-touch-icon' href='/icons/icon-192.svg' />
   <link rel='icon' type='image/svg+xml' href='/icons/icon-512.svg' />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --color-primary: #0B5FB3;
-      --color-primary-dark: #073B73;
-      --color-accent-teal: #16AFA3;
-      --color-accent-yellow: #FDBA24;
+      /* Ubuntu Daycare OS brand palette */
+      --brand-purple: #4B1F78; --brand-purple-dark: #37155C;
+      --brand-orange: #F7931E; --brand-orange-dark: #D97A08;
+      --brand-teal: #0F9D8A; --brand-teal-dark: #0B7A6B;
+      --brand-navy: #102A43;
+      --bg-purple: #F4EFFB; --bg-teal: #E6F6F3; --bg-orange: #FFF3E2;
+      /* semantic + legacy aliases — retheme every existing var() usage app-wide */
+      --color-primary: var(--brand-purple);
+      --color-primary-dark: var(--brand-purple-dark);
+      --color-accent-teal: var(--brand-teal);
+      --color-accent-yellow: var(--brand-orange);
       --color-accent-coral: #F87171;
-      --color-bg-soft: #F8FBFF;
-      --color-text: #111827;
+      --color-bg-soft: #F7F6FB;
+      --color-text: #14213A;
       --color-muted: #6B7280;
       --color-white: #FFFFFF;
       --radius: 12px;
-      --shadow: 0 1px 3px rgba(11, 95, 179, 0.08), 0 1px 2px rgba(11, 95, 179, 0.06);
+      --shadow: 0 1px 3px rgba(75, 31, 120, 0.08), 0 1px 2px rgba(75, 31, 120, 0.06);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
       background: var(--color-bg-soft);
       color: var(--color-text);
       line-height: 1.5;
     }
+    h1, h2, h3, h4 { font-family: 'Sora', system-ui, sans-serif; }
     .app-layout { display: flex; min-height: 100vh; }
     .sidebar {
       width: 260px; background: var(--color-white); border-right: 1px solid #E5E7EB;
@@ -50,7 +61,7 @@
       font-size: 0.9rem; font-weight: 500; transition: all 0.15s;
     }
     .nav-item:hover { background: #F1F5F9; color: var(--color-primary-dark); }
-    .nav-item.active { background: #FEF3C7; color: #D97706; font-weight: 600; }
+    .nav-item.active { background: var(--bg-purple); color: var(--brand-purple); font-weight: 600; }
     .sidebar-footer {
       padding: 16px; border-top: 1px solid #E5E7EB;
       font-size: 0.75rem; color: var(--color-muted); text-align: center;
