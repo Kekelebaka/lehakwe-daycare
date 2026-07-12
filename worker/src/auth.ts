@@ -67,6 +67,14 @@ export async function verifyJwt(token: string, secret: string): Promise<JwtPaylo
 // Format: base64(salt):base64(hash):iterations
 const ITERATIONS = 100_000;
 
+// Constant-time string comparison to avoid password verification timing side-channels.
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let out = 0;
+  for (let i = 0; i < a.length; i++) out |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return out === 0;
+}
+
 export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey(
@@ -91,7 +99,7 @@ export async function verifyPassword(password: string, stored: string): Promise<
       { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
       key, 256
     );
-    return base64url(hash) === hashB64;
+    return timingSafeEqual(base64url(hash), hashB64);
   } catch {
     return false;
   }

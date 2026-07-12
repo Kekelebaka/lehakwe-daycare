@@ -25,6 +25,28 @@ interface Env {
   AI: any;
 }
 
+// ── Phase 0: server-side role guard ──────────────────────────────
+// The client cannot be trusted to enforce roles. These operations require
+// an admin/owner token regardless of what the frontend shows.
+function requiresAdmin(method: string, path: string): boolean {
+  const m = method.toUpperCase();
+  const rules: Array<[RegExp, string[]]> = [
+    [/^\/api\/staff$/, ['POST']],                 // create staff
+    [/^\/api\/staff\/[^/]+$/, ['PUT', 'DELETE']], // edit/remove staff
+    [/^\/api\/payslips(\/.*)?$/, ['GET', 'POST', 'PUT', 'DELETE']], // payroll + salaries
+    [/^\/api\/settings$/, ['PUT']],               // centre settings
+    [/^\/api\/audit$/, ['GET']],                  // audit log
+    [/^\/api\/parents\/[^/]+$/, ['DELETE']],      // delete parent
+    [/^\/api\/children\/[^/]+$/, ['DELETE']],     // delete child
+    [/^\/api\/documents\/[^/]+$/, ['DELETE']],    // delete document
+    [/^\/api\/compliance\//, ['PUT']],            // compliance status
+    [/^\/api\/fees\/schedules$/, ['POST']],       // fee pricing
+    [/^\/api\/leave\/[^/]+$/, ['PUT', 'DELETE']], // approve/remove leave
+  ];
+  for (const [re, methods] of rules) if (re.test(path) && methods.includes(m)) return true;
+  return false;
+}
+
 export default {
   // ── Email Workers handler ──────────────────────────────────
   async email(message: ForwardableEmailMessage, env: Env, _ctx: ExecutionContext): Promise<void> {
@@ -111,6 +133,11 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
+    // Phase 0: fail closed if the JWT signing secret is not configured
+    if (!env.JWT_SECRET) {
+      return Response.json({ ok: false, error: 'Server misconfigured' }, { status: 500, headers: corsHeaders });
+    }
+
     // ── Health check (public) ──
     if (path === '/api/health') {
       return Response.json({ ok: true, ts: Date.now() }, { headers: corsHeaders });
@@ -157,6 +184,10 @@ export default {
       if (!identity) {
         return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
       }
+      // Phase 0: enforce authorization on the server — client roles are NOT trusted
+      if (requiresAdmin(request.method, path) && identity.role !== 'admin' && identity.role !== 'owner') {
+        return Response.json({ ok: false, error: 'Forbidden — admin access required' }, { status: 403, headers: corsHeaders });
+      }
     }
 
     try {
@@ -193,7 +224,13 @@ export default {
       // ── STAFF CRUD ──
       if (path === '/api/staff' && request.method === 'GET') {
         const staff = await db.getAllStaff();
-        return Response.json({ ok: true, data: staff }, { headers: corsHeaders });
+        // Phase 0: non-admins get a directory only — no salaries, ID numbers or HR fields.
+        const privileged = identity?.role === 'admin' || identity?.role === 'owner';
+        const data = privileged ? staff : staff.map((s: any) => ({
+          staff_id: s.staff_id, full_name: s.full_name, job_title: s.job_title,
+          email: s.email, phone: s.phone, active: s.active,
+        }));
+        return Response.json({ ok: true, data }, { headers: corsHeaders });
       }
       if (path === '/api/staff' && request.method === 'POST') {
         const data = await request.json() as Partial<StaffRow>;
@@ -201,7 +238,7 @@ export default {
         const stmt = `INSERT INTO staff (staff_id, full_name, id_number, employee_number, job_title, email, phone, start_date, basic_salary, uif_enabled, paye_enabled, active, signature, emergency_contact_name, emergency_contact_phone, notes, gender, race, disability, disability_description, training_received, training_type, subsidised, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`;
         await db.DB.prepare(stmt).bind(id, data.full_name, data.id_number || null, data.employee_number || null, data.job_title, data.email || null, data.phone || null, data.start_date || null, data.basic_salary || 0, data.uif_enabled ?? 1, data.paye_enabled ?? 0, data.active ?? 1, data.signature || '', data.emergency_contact_name || null, data.emergency_contact_phone || null, data.notes || null, data.gender || null, data.race || null, data.disability || null, data.disability_description || null, data.training_received || null, data.training_type || null, data.subsidised ?? 1).run();
         
-        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'created', module_name: 'staff', record_id: id, metadata: JSON.stringify(data) });
+        await db.insertAudit({ id: db.uuid(), user_id: identity?.sub || 'admin', action: 'created', module_name: 'staff', record_id: id, metadata: JSON.stringify(data) });
         return Response.json({ ok: true, data: { staff_id: id } }, { headers: corsHeaders });
       }
 
@@ -226,7 +263,7 @@ export default {
           VALUES (?, ?, ?, ?, ?, ?, ?, 'generated', 'Admin', datetime('now'))
         `).bind(id, data.staff_id, data.pay_period_month, data.pay_period_year, data.gross_pay, data.total_deductions, data.net_pay).run();
         
-        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'generated', module_name: 'payslips', record_id: id, metadata: JSON.stringify(data) });
+        await db.insertAudit({ id: db.uuid(), user_id: identity?.sub || 'admin', action: 'generated', module_name: 'payslips', record_id: id, metadata: JSON.stringify(data) });
         return Response.json({ ok: true, data: { payslip_id: id } }, { headers: corsHeaders });
       }
 
@@ -264,7 +301,7 @@ export default {
         const id = db.uuid();
         await db.DB.prepare(`INSERT INTO children (child_id, full_name, date_of_birth, age_group, enrolment_date, status, parent_id, emergency_contact_name, emergency_contact_phone, medical_notes, allergies, pickup_authorisation_notes, gender, race, disability, disability_description, income_category, id_number, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`)
           .bind(id, data.full_name, data.date_of_birth || null, data.age_group || null, data.enrolment_date || null, data.status || 'active', data.parent_id || null, data.emergency_contact_name || null, data.emergency_contact_phone || null, data.medical_notes || null, data.allergies || null, data.pickup_authorisation_notes || null, data.gender || null, data.race || null, data.disability || null, data.disability_description || null, data.income_category || null, data.id_number || null).run();
-        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'created', module_name: 'children', record_id: id, metadata: JSON.stringify(data) });
+        await db.insertAudit({ id: db.uuid(), user_id: identity?.sub || 'admin', action: 'created', module_name: 'children', record_id: id, metadata: JSON.stringify(data) });
         return Response.json({ ok: true, data: { child_id: id } }, { headers: corsHeaders });
       }
 
@@ -274,14 +311,14 @@ export default {
         const data = await request.json() as Partial<ChildRow>;
         await db.DB.prepare(`UPDATE children SET full_name = COALESCE(?, full_name), date_of_birth = COALESCE(?, date_of_birth), age_group = COALESCE(?, age_group), enrolment_date = COALESCE(?, enrolment_date), status = COALESCE(?, status), parent_id = COALESCE(?, parent_id), emergency_contact_name = COALESCE(?, emergency_contact_name), emergency_contact_phone = COALESCE(?, emergency_contact_phone), medical_notes = COALESCE(?, medical_notes), allergies = COALESCE(?, allergies), pickup_authorisation_notes = COALESCE(?, pickup_authorisation_notes), gender = COALESCE(?, gender), race = COALESCE(?, race), disability = COALESCE(?, disability), disability_description = COALESCE(?, disability_description), income_category = COALESCE(?, income_category), id_number = COALESCE(?, id_number), updated_at = datetime('now') WHERE child_id = ?`)
           .bind(data.full_name ?? null, data.date_of_birth ?? null, data.age_group ?? null, data.enrolment_date ?? null, data.status ?? null, data.parent_id ?? null, data.emergency_contact_name ?? null, data.emergency_contact_phone ?? null, data.medical_notes ?? null, data.allergies ?? null, data.pickup_authorisation_notes ?? null, data.gender ?? null, data.race ?? null, data.disability ?? null, data.disability_description ?? null, data.income_category ?? null, data.id_number ?? null, id).run();
-        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'updated', module_name: 'children', record_id: id, metadata: JSON.stringify(data) });
+        await db.insertAudit({ id: db.uuid(), user_id: identity?.sub || 'admin', action: 'updated', module_name: 'children', record_id: id, metadata: JSON.stringify(data) });
         return Response.json({ ok: true }, { headers: corsHeaders });
       }
 
       if (childUpdateMatch && request.method === 'DELETE') {
         const id = childUpdateMatch[1];
         await db.DB.prepare('DELETE FROM children WHERE child_id = ?').bind(id).run();
-        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'deleted', module_name: 'children', record_id: id, metadata: '{}' });
+        await db.insertAudit({ id: db.uuid(), user_id: identity?.sub || 'admin', action: 'deleted', module_name: 'children', record_id: id, metadata: '{}' });
         return Response.json({ ok: true }, { headers: corsHeaders });
       }
 
@@ -291,7 +328,7 @@ export default {
         const id = db.uuid();
         await db.DB.prepare(`INSERT INTO parents (parent_id, full_name, phone, email, address, relationship_to_child, emergency_contact, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`)
           .bind(id, data.full_name, data.phone || null, data.email || null, data.address || null, data.relationship_to_child || null, data.emergency_contact || 0, data.notes || null).run();
-        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'created', module_name: 'parents', record_id: id, metadata: JSON.stringify(data) });
+        await db.insertAudit({ id: db.uuid(), user_id: identity?.sub || 'admin', action: 'created', module_name: 'parents', record_id: id, metadata: JSON.stringify(data) });
         return Response.json({ ok: true, data: { parent_id: id } }, { headers: corsHeaders });
       }
 
@@ -301,14 +338,14 @@ export default {
         const data = await request.json() as Partial<ParentRow>;
         await db.DB.prepare(`UPDATE parents SET full_name = COALESCE(?, full_name), phone = COALESCE(?, phone), email = COALESCE(?, email), address = COALESCE(?, address), relationship_to_child = COALESCE(?, relationship_to_child), emergency_contact = COALESCE(?, emergency_contact), notes = COALESCE(?, notes), updated_at = datetime('now') WHERE parent_id = ?`)
           .bind(data.full_name ?? null, data.phone ?? null, data.email ?? null, data.address ?? null, data.relationship_to_child ?? null, data.emergency_contact ?? null, data.notes ?? null, id).run();
-        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'updated', module_name: 'parents', record_id: id, metadata: JSON.stringify(data) });
+        await db.insertAudit({ id: db.uuid(), user_id: identity?.sub || 'admin', action: 'updated', module_name: 'parents', record_id: id, metadata: JSON.stringify(data) });
         return Response.json({ ok: true }, { headers: corsHeaders });
       }
 
       if (parentUpdateMatch && request.method === 'DELETE') {
         const id = parentUpdateMatch[1];
         await db.DB.prepare('DELETE FROM parents WHERE parent_id = ?').bind(id).run();
-        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'deleted', module_name: 'parents', record_id: id, metadata: '{}' });
+        await db.insertAudit({ id: db.uuid(), user_id: identity?.sub || 'admin', action: 'deleted', module_name: 'parents', record_id: id, metadata: '{}' });
         return Response.json({ ok: true }, { headers: corsHeaders });
       }
 
@@ -335,7 +372,7 @@ export default {
         const id = db.uuid();
         await db.DB.prepare(`INSERT INTO documents (document_id, related_entity_type, related_entity_id, document_type, title, expiry_date, file_url, status, uploaded_by, uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`)
           .bind(id, data.related_entity_type, data.related_entity_id, data.document_type, data.title, data.expiry_date || null, data.file_url || null, data.status || 'active', data.uploaded_by || null).run();
-        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'created', module_name: 'documents', record_id: id, metadata: JSON.stringify(data) });
+        await db.insertAudit({ id: db.uuid(), user_id: identity?.sub || 'admin', action: 'created', module_name: 'documents', record_id: id, metadata: JSON.stringify(data) });
         return Response.json({ ok: true, data: { document_id: id } }, { headers: corsHeaders });
       }
 
@@ -343,7 +380,7 @@ export default {
       if (docDeleteMatch && request.method === 'DELETE') {
         const id = docDeleteMatch[1];
         await db.DB.prepare('DELETE FROM documents WHERE document_id = ?').bind(id).run();
-        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'deleted', module_name: 'documents', record_id: id, metadata: '{}' });
+        await db.insertAudit({ id: db.uuid(), user_id: identity?.sub || 'admin', action: 'deleted', module_name: 'documents', record_id: id, metadata: '{}' });
         return Response.json({ ok: true }, { headers: corsHeaders });
       }
 
@@ -362,7 +399,7 @@ export default {
         const stmt = db.DB.prepare(`INSERT INTO settings (setting_key, setting_value, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = datetime('now')`);
         const batch = Object.entries(settings).map(([key, value]) => stmt.bind(key, value));
         await db.DB.batch(batch);
-        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'updated', module_name: 'settings', record_id: 'bulk', metadata: JSON.stringify({ keys: Object.keys(settings) }) });
+        await db.insertAudit({ id: db.uuid(), user_id: identity?.sub || 'admin', action: 'updated', module_name: 'settings', record_id: 'bulk', metadata: JSON.stringify({ keys: Object.keys(settings) }) });
         return Response.json({ ok: true }, { headers: corsHeaders });
       }
 
@@ -405,7 +442,7 @@ export default {
           data.training_type ?? null, data.subsidised ?? null,
           id
         ).run();
-        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'updated', module_name: 'staff', record_id: id, metadata: JSON.stringify(data) });
+        await db.insertAudit({ id: db.uuid(), user_id: identity?.sub || 'admin', action: 'updated', module_name: 'staff', record_id: id, metadata: JSON.stringify(data) });
         return Response.json({ ok: true }, { headers: corsHeaders });
       }
 
@@ -414,7 +451,7 @@ export default {
       if (staffDeleteMatch && request.method === 'DELETE') {
         const id = staffDeleteMatch[1];
         await db.DB.prepare('UPDATE staff SET active = 0, updated_at = datetime(\'now\') WHERE staff_id = ?').bind(id).run();
-        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'deactivated', module_name: 'staff', record_id: id, metadata: '{}' });
+        await db.insertAudit({ id: db.uuid(), user_id: identity?.sub || 'admin', action: 'deactivated', module_name: 'staff', record_id: id, metadata: '{}' });
         return Response.json({ ok: true }, { headers: corsHeaders });
       }
 
@@ -884,11 +921,13 @@ export default {
       // ── GET /api/public/child/:token ──
       if (path.startsWith('/api/public/child/') && request.method === 'GET') {
         const portalToken = path.split('/').pop();
+        // Phase 0: minimise exposed PII (no DOB, no parent contact details) and honour token expiry.
         const child = await env.DB.prepare(
-          `SELECT c.child_id, c.full_name, c.date_of_birth, c.age_group, c.status,
-                  p.full_name as parent_name, p.phone as parent_phone, p.email as parent_email
+          `SELECT c.child_id, c.full_name, c.age_group, c.status,
+                  p.full_name as parent_name
            FROM children c LEFT JOIN parents p ON c.parent_id = p.parent_id
-           WHERE c.portal_token = ?`
+           WHERE c.portal_token = ?
+             AND (c.portal_token_expires_at IS NULL OR c.portal_token_expires_at > datetime('now'))`
         ).bind(portalToken).first();
         if (!child) return Response.json({ ok: false, error: 'Child not found' }, { status: 404, headers: corsHeaders });
 
@@ -932,6 +971,38 @@ export default {
       if (path.startsWith('/api/public/qr/') && request.method === 'GET') {
         const portalToken = path.split('/').pop();
         return Response.json({ ok: true, data: { url: `https://app.lehakwedaycare.co.za/parent/${portalToken}` } }, { headers: corsHeaders });
+      }
+
+      // ── POST /api/public/enquiry (public: website "Register your child" form) ──
+      // Phase 0: the website posted to the auth-guarded /api/waitlist and silently 401'd,
+      // dropping every lead. This is the public, consent-gated intake it should use.
+      if (path === '/api/public/enquiry' && request.method === 'POST') {
+        const b = await request.json() as any;
+        if (!b || !b.child_name || !b.parent_name || !b.parent_phone) {
+          return Response.json({ ok: false, error: 'Please provide the child name, your name and a phone number.' }, { status: 400, headers: corsHeaders });
+        }
+        if (!b.consent) {
+          return Response.json({ ok: false, error: 'Please tick the consent box so we may contact you.' }, { status: 400, headers: corsHeaders });
+        }
+        const id = crypto.randomUUID();
+        const maxPos = await env.DB.prepare('SELECT MAX(position) AS max_pos FROM waitlist').first<{ max_pos: number }>();
+        const position = (maxPos?.max_pos || 0) + 1;
+        await env.DB.prepare(
+          `INSERT INTO waitlist (waitlist_id, child_name, parent_name, parent_phone, parent_email, age_group, preferred_start_date, status, notes, position)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'waiting', ?, ?)`
+        ).bind(
+          id,
+          String(b.child_name).slice(0, 120),
+          String(b.parent_name).slice(0, 120),
+          String(b.parent_phone).slice(0, 40),
+          b.parent_email ? String(b.parent_email).slice(0, 120) : null,
+          b.age_group ? String(b.age_group).slice(0, 40) : null,
+          b.dob ? String(b.dob).slice(0, 20) : null,
+          `Website enquiry. Consent given at ${new Date().toISOString()}.` + (b.notes ? ` Notes: ${String(b.notes).slice(0, 500)}` : ''),
+          position
+        ).run();
+        await db.insertAudit({ id: db.uuid(), user_id: 'public', action: 'created', module_name: 'waitlist', record_id: id, metadata: JSON.stringify({ source: 'website' }) });
+        return Response.json({ ok: true, data: { received: true } }, { headers: corsHeaders });
       }
 
       // ═══════════════════════════════════════════════════════
@@ -1001,7 +1072,7 @@ export default {
           INSERT INTO leave_requests (leave_id, staff_id, leave_type, start_date, end_date, reason, status)
           VALUES (?, ?, ?, ?, ?, ?, 'pending')
         `).bind(id, body.staff_id, body.leave_type, body.start_date, body.end_date, body.reason || null).run();
-        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'created', module_name: 'leave_requests', record_id: id, metadata: JSON.stringify(body) });
+        await db.insertAudit({ id: db.uuid(), user_id: identity?.sub || 'admin', action: 'created', module_name: 'leave_requests', record_id: id, metadata: JSON.stringify(body) });
         return Response.json({ ok: true, data: { leave_id: id } }, { headers: corsHeaders });
       }
 
@@ -1017,14 +1088,14 @@ export default {
         if (fields.length === 0) return Response.json({ ok: false, error: 'No fields to update' }, { status: 400, headers: corsHeaders });
         vals.push(leaveMatch[1]);
         await env.DB.prepare(`UPDATE leave_requests SET ${fields.join(', ')} WHERE leave_id = ?`).bind(...vals).run();
-        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'updated', module_name: 'leave_requests', record_id: leaveMatch[1], metadata: JSON.stringify(body) });
+        await db.insertAudit({ id: db.uuid(), user_id: identity?.sub || 'admin', action: 'updated', module_name: 'leave_requests', record_id: leaveMatch[1], metadata: JSON.stringify(body) });
         return Response.json({ ok: true }, { headers: corsHeaders });
       }
 
       // ── DELETE /api/leave/:id ──
       if (leaveMatch && request.method === 'DELETE') {
         await env.DB.prepare('DELETE FROM leave_requests WHERE leave_id = ?').bind(leaveMatch[1]).run();
-        await db.insertAudit({ id: db.uuid(), user_id: 'admin', action: 'deleted', module_name: 'leave_requests', record_id: leaveMatch[1], metadata: '{}' });
+        await db.insertAudit({ id: db.uuid(), user_id: identity?.sub || 'admin', action: 'deleted', module_name: 'leave_requests', record_id: leaveMatch[1], metadata: '{}' });
         return Response.json({ ok: true }, { headers: corsHeaders });
       }
 
@@ -1032,7 +1103,7 @@ export default {
 
     } catch (err) {
       console.error('API error:', err);
-      return Response.json({ ok: false, error: err instanceof Error ? err.message : 'Internal error' }, { status: 500, headers: corsHeaders });
+      return Response.json({ ok: false, error: 'Internal error' }, { status: 500, headers: corsHeaders });
     }
   },
 };
