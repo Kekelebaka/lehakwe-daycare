@@ -618,7 +618,7 @@ async function submitEnquiry(e) {
   btn.textContent = 'Sending…';
 
   try {
-    const res = await fetch('https://lehakwe-email-worker.chiefops26.workers.dev/api/public/enquiry', {
+    const res = await fetch('https://api.lehakwedaycare.co.za/api/public/enquiry', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
