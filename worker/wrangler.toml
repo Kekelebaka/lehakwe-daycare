@@ -26,6 +26,11 @@ bucket_name = "lehakwe-media"
 [ai]
 binding = "AI"
 
+# Phase 2 (PR #10): flush the notification outbox on a schedule (retry safety-net;
+# prompt delivery still happens inline via waitUntil). Needs the `scheduled` handler.
+[triggers]
+crons = ["*/15 * * * *"]
+
 # Phase 0b: login rate-limiting store. Create it, then uncomment + paste the id:
 #   wrangler kv namespace create RATE_LIMIT
 # [[kv_namespaces]]

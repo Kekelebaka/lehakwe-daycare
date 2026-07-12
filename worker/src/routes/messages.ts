@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import type { AppEnv } from '../env';
 import { getOrCreateThread, markThreadRead, insertThreadMessage } from '../messaging';
+import { enqueue, dispatchPending } from '../notifications';
 
 // Staff side of parent↔staff messaging. Mounted under /api (protected by the
 // global staff-auth middleware; NOT in the admin-only matrix, so teachers can
@@ -60,6 +61,23 @@ r.post('/messages/thread/:childId', async (c) => {
   if (!t) return c.json({ ok: false, error: 'Child not found' }, 404);
 
   const msg = await insertThreadMessage(c.env.DB, t.thread_id, 'staff', identity.sub, identity.name || 'Staff', parsed.data.body);
+
+  // Notify the parent out-of-app that a new message arrived (best-effort).
+  try {
+    const child = await c.env.DB.prepare('SELECT parent_id, full_name FROM children WHERE child_id = ?').bind(childId).first<any>();
+    if (child?.parent_id) {
+      const b = parsed.data.body;
+      const preview = b.length > 140 ? `${b.slice(0, 140)}…` : b;
+      await enqueue(c.env, {
+        parentId: child.parent_id, childId,
+        type: 'message',
+        title: `New message about ${child.full_name}`,
+        body: `${identity.name || 'The centre'}: "${preview}"`,
+      });
+      try { c.executionCtx.waitUntil(dispatchPending(c.env)); } catch { await dispatchPending(c.env); }
+    }
+  } catch { /* notifications are best-effort */ }
+
   return c.json({ ok: true, data: msg });
 });
 
