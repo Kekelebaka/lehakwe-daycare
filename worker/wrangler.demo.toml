@@ -22,7 +22,7 @@ routes = [
 [[d1_databases]]
 binding = "DB"
 database_name = "ubuntu-demo-db"
-database_id = "PASTE_UBUNTU_DEMO_DB_ID_HERE"
+database_id = "240411a5-8429-47ea-ae1b-2c50cf627cb2"
 
 # Demo has no inbound email; EMAIL_STORE binding is required by the code, so we
 # point it at the same demo media bucket (unused). MEDIA holds demo photos.
