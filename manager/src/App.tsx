@@ -17,6 +17,8 @@ import Notices from './pages/Notices';
 import Milestones from './pages/Milestones';
 import AIAssistant from './pages/AIAssistant';
 import ParentPortal from './pages/ParentPortal';
+import ParentLogin from './pages/ParentLogin';
+import ParentApp from './pages/ParentApp';
 import DailyLogs from './pages/DailyLogs';
 import LeaveTracker from './pages/LeaveTracker';
 import WaitlistPage from './pages/WaitlistPage';
@@ -381,8 +383,8 @@ function AppLayout({ children, role, onClearRole }: { children: React.ReactNode;
   );
 }
 
-// ── Root App ──
-export default function App() {
+// ── Staff app (auth-gated) ──
+function StaffApp() {
   const [authenticated, setAuthenticated] = useState<boolean>(() => !!getStoredUser());
   const [role, setRole] = useState<UserRole | null>(() => {
     const stored = localStorage.getItem('lehakwe-role');
@@ -458,4 +460,22 @@ export default function App() {
       </BrowserRouter>
     </RoleContext.Provider>
   );
+}
+
+// ── Root: parents get their own app; everything else is the staff app ──
+export default function App() {
+  const path = window.location.pathname;
+  if (path.startsWith('/parent/') || path === '/parent-login' || path.startsWith('/my')) {
+    return (
+      <BrowserRouter>
+        <Routes>
+          <Route path="/parent/:childId" element={<ParentPortal />} />
+          <Route path="/parent-login" element={<ParentLogin />} />
+          <Route path="/my" element={<ParentApp />} />
+          <Route path="*" element={<ParentLogin />} />
+        </Routes>
+      </BrowserRouter>
+    );
+  }
+  return <StaffApp />;
 }

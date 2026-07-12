@@ -27,6 +27,31 @@ export function clearedCookie(): string {
   return `${SESSION_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=${COOKIE_DOMAIN}; Max-Age=0`;
 }
 
+// Parent session cookie (separate name so parent + staff sessions never collide).
+export const PARENT_COOKIE = 'lehakwe_parent';
+export function parentSessionCookie(token: string, maxAgeSeconds: number): string {
+  return [
+    `${PARENT_COOKIE}=${token}`,
+    'HttpOnly', 'Secure', 'SameSite=Lax', 'Path=/',
+    `Domain=${COOKIE_DOMAIN}`, `Max-Age=${maxAgeSeconds}`,
+  ].join('; ');
+}
+export function clearedParentCookie(): string {
+  return `${PARENT_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=${COOKIE_DOMAIN}; Max-Age=0`;
+}
+
+// SHA-256 hex — OTP codes are stored hashed, never in plaintext.
+export async function sha256hex(input: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+export function timingSafeEqualStr(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let out = 0;
+  for (let i = 0; i < a.length; i++) out |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return out === 0;
+}
+
 // ── Authorization ────────────────────────────────────────────────
 export function isAdmin(role?: string): boolean {
   return role === 'admin' || role === 'owner';
@@ -100,4 +125,37 @@ export async function sendEmailViaResend(
   } catch {
     return false;
   }
+}
+
+// ── OTP delivery: email works now (Resend); SMS/WhatsApp is pluggable ──
+export async function sendOtp(
+  env: Env,
+  msg: { identifier: string; isEmail: boolean; code: string; parentName?: string },
+): Promise<boolean> {
+  const { identifier, isEmail, code, parentName } = msg;
+  if (isEmail) {
+    const loginUrl = `https://app.lehakwedaycare.co.za/parent-login?e=${encodeURIComponent(identifier)}`;
+    return sendEmailViaResend(env, {
+      to: identifier,
+      fromName: 'Ubuntu Daycare OS',
+      fromEmail: `info@${env.SENDING_DOMAIN}`,
+      subject: `Your Ubuntu Daycare OS sign-in code: ${code}`,
+      text: `Hi ${parentName || 'there'},\n\nYour sign-in code is ${code}. It expires in 10 minutes.\n\nOpen ${loginUrl} and enter the code to see your child's updates.\n\nUbuntu Daycare OS — Powered by ChiefOps`,
+    });
+  }
+  // SMS / WhatsApp: set SMS_PROVIDER_URL + SMS_PROVIDER_KEY to enable delivery.
+  if (env.SMS_PROVIDER_URL && env.SMS_PROVIDER_KEY) {
+    try {
+      const res = await fetch(env.SMS_PROVIDER_URL, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${env.SMS_PROVIDER_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: identifier, message: `Your Ubuntu Daycare OS code is ${code} (valid 10 min).` }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+  console.warn('OTP SMS delivery not configured; code not delivered for', identifier);
+  return false;
 }

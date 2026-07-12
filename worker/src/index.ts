@@ -17,6 +17,7 @@ import careRoutes from './routes/care';
 import commsRoutes from './routes/comms';
 import adminRoutes from './routes/admin';
 import mediaRoutes from './routes/media';
+import parentRoutes from './routes/parent';
 
 const app = new Hono<AppEnv>();
 
@@ -42,7 +43,7 @@ app.use('/api/*', async (c, next) => {
 app.use('/api/*', async (c, next) => {
   const path = c.req.path;
   const method = c.req.method;
-  const isPublic = path.startsWith('/api/public/') || path === '/api/health' || path.startsWith('/api/auth/');
+  const isPublic = path.startsWith('/api/public/') || path === '/api/health' || path.startsWith('/api/auth/') || path.startsWith('/api/parent/');
   c.set('identity', null);
   if (!isPublic) {
     const authHeader = c.req.header('Authorization') || '';
@@ -69,6 +70,7 @@ app.route('/api', careRoutes);
 app.route('/api', commsRoutes);
 app.route('/api', adminRoutes);
 app.route('/api', mediaRoutes);
+app.route('/api', parentRoutes);
 
 app.notFound((c) => c.json({ ok: false, error: 'Endpoint not found' }, 404));
 app.onError((err, c) => {

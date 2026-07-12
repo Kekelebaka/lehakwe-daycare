@@ -13,6 +13,8 @@ export interface Env {
   RESEND_API_KEY?: string;    // optional: enables outbound reply email
   TURNSTILE_SECRET?: string;  // optional: enables login CAPTCHA verification
   RATE_LIMIT?: KVNamespace;   // optional: enables login rate-limiting
+  SMS_PROVIDER_URL?: string;  // optional: parent OTP delivery via SMS/WhatsApp gateway
+  SMS_PROVIDER_KEY?: string;
   AI: any;
 }
 

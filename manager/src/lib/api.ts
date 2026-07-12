@@ -82,6 +82,25 @@ export function mediaUrl(mediaId: string): string {
   return `${API_BASE}/media/${mediaId}`;
 }
 
+// ── Parent auth (OTP) + parent app ────────────────────────────
+async function parentPost(path: string, body: any) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Request failed');
+  return json.data;
+}
+export const parentApi = {
+  requestOtp: (identifier: string) => parentPost('/parent/request-otp', { identifier }),
+  verifyOtp: (identifier: string, code: string) => parentPost('/parent/verify-otp', { identifier, code }),
+  logout: () => parentPost('/parent/logout', {}),
+  me: () => fetch(`${API_BASE}/parent/me`, { credentials: 'include' }).then((r) => r.json()),
+  child: (id: string) => fetch(`${API_BASE}/parent/child/${id}`, { credentials: 'include' }).then((r) => r.json()),
+  mediaUrl: (id: string) => `${API_BASE}/parent/media/${id}`,
+};
+
 // ── API methods ───────────────────────────────────────────────
 export const api = {
   getMe: () => request<any>('/me'),
