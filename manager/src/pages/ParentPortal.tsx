@@ -22,7 +22,7 @@ export default function ParentPortal() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'notices' | 'attendance' | 'fees'>('notices');
+  const [activeTab, setActiveTab] = useState<'notices' | 'photos' | 'attendance' | 'fees'>('notices');
 
   useEffect(() => {
     if (!childId) { setError('No child ID'); setLoading(false); return; }
@@ -53,6 +53,7 @@ export default function ParentPortal() {
   );
 
   const { child, attendance, fees, notices, settings, balance } = data;
+  const media: any[] = data.media || [];
 
   const attendanceDays = attendance.length;
   const presentDays = attendance.filter((a: any) => a.status === 'present').length;
@@ -173,6 +174,7 @@ export default function ParentPortal() {
       <div style={{ margin: '16px 16px 0', display: 'flex', gap: 4, background: 'white', borderRadius: 10, padding: 4, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
         {[
           { key: 'notices', label: '📢 Notices', count: notices.length },
+          { key: 'photos', label: '📷 Photos', count: media.length },
           { key: 'attendance', label: '📋 Attendance', count: attendanceDays },
           { key: 'fees', label: '💰 Fees', count: fees.length },
         ].map(tab => (
@@ -207,6 +209,25 @@ export default function ParentPortal() {
                 <p style={{ fontSize: '0.8rem', color: '#374151', lineHeight: 1.5, margin: 0 }}>{n.content}</p>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* PHOTOS TAB */}
+        {activeTab === 'photos' && (
+          <div>
+            {media.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 32, color: '#9CA3AF', background: 'white', borderRadius: 10 }}>No photos yet — check back soon 📷</div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
+                {media.map((m: any) => (
+                  <div key={m.media_id} style={{ background: 'white', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                    <img src={`${API_BASE}/public/media/${childId}/${m.media_id}`} alt={m.caption || 'Photo'} loading="lazy" style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', display: 'block', background: '#F3F4F6' }} />
+                    {m.caption && <div style={{ padding: '6px 8px', fontSize: '0.72rem', color: '#374151' }}>{m.caption}</div>}
+                    <div style={{ padding: '0 8px 6px', fontSize: '0.62rem', color: '#9CA3AF' }}>{new Date(m.created_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -291,7 +312,7 @@ export default function ParentPortal() {
       <div style={{ textAlign: 'center', padding: '16px', color: '#9CA3AF', fontSize: '0.7rem', borderTop: '1px solid #E5E7EB' }}>
         {settings?.centre_name || 'Lehakwe Daycare'} • NPO {settings?.npo_number || '229-695'}
         <br />
-        <a href={`https://wa.me/276****1701?text=Hi%20Lehakwe%20Daycare%2C%20I'm%20enquiring%20about%20${encodeURIComponent(child.full_name)}`}
+        <a href={`https://wa.me/27615491701?text=Hi%20Lehakwe%20Daycare%2C%20I'm%20enquiring%20about%20${encodeURIComponent(child.full_name)}`}
           style={{ color: '#0B5FB3', textDecoration: 'none', fontWeight: 600 }}>
           💬 WhatsApp Us
         </a>

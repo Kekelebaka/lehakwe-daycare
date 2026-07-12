@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { api } from '../lib/api';
+import { api, uploadMedia } from '../lib/api';
 
 const ACTIVITY_TYPES = [
   { key: 'feeding', icon: '🍽️', label: 'Feeding' },
@@ -28,6 +28,22 @@ export default function DailyLogs() {
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  const handlePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f || !childId) return;
+    setUploadingPhoto(true);
+    try {
+      await uploadMedia(childId, f, description.trim() || undefined);
+      alert('Photo added ✓ Parents can see it in the portal.');
+    } catch (err: any) {
+      alert(err.message || 'Photo upload failed');
+    } finally {
+      setUploadingPhoto(false);
+      e.target.value = '';
+    }
+  };
 
   useEffect(() => {
     api.getChildren()
@@ -176,6 +192,15 @@ export default function DailyLogs() {
               placeholder="Any additional notes..."
               rows={2}
               style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: '0.85rem', resize: 'vertical', fontFamily: 'inherit' }} />
+          </div>
+
+          {/* Photo (optional) */}
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: 4 }}>Photo (optional)</label>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 8, border: '1px dashed #C7B6E0', background: '#F4EFFB', color: '#4B1F78', fontSize: '0.8rem', fontWeight: 600, cursor: uploadingPhoto ? 'wait' : 'pointer' }}>
+              {uploadingPhoto ? 'Uploading…' : '📷 Add a photo for this child'}
+              <input type="file" accept="image/*" capture="environment" onChange={handlePhoto} disabled={uploadingPhoto} style={{ display: 'none' }} />
+            </label>
           </div>
 
           {/* Submit */}

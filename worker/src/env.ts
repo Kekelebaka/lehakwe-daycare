@@ -4,6 +4,7 @@ import type { JwtPayload } from './auth';
 export interface Env {
   DB: D1Database;
   EMAIL_STORE: R2Bucket;
+  MEDIA: R2Bucket;            // Phase 2: child photos / media
   FORWARD_EMAILS: string;
   AUTO_REPLY_ENABLED: string;
   SENDING_DOMAIN: string;

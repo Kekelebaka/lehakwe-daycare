@@ -16,6 +16,7 @@ import financeRoutes from './routes/finance';
 import careRoutes from './routes/care';
 import commsRoutes from './routes/comms';
 import adminRoutes from './routes/admin';
+import mediaRoutes from './routes/media';
 
 const app = new Hono<AppEnv>();
 
@@ -67,6 +68,7 @@ app.route('/api', financeRoutes);
 app.route('/api', careRoutes);
 app.route('/api', commsRoutes);
 app.route('/api', adminRoutes);
+app.route('/api', mediaRoutes);
 
 app.notFound((c) => c.json({ ok: false, error: 'Endpoint not found' }, 404));
 app.onError((err, c) => {
