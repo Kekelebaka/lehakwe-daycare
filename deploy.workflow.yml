@@ -1,0 +1,60 @@
+# ⚠️ ACTIVATION: move this file to .github/workflows/deploy.yml to enable it.
+#   git mv deploy.workflow.yml .github/workflows/deploy.yml && git commit -m "ci: activate deploy workflow" && git push
+# Then add repo secret CLOUDFLARE_API_TOKEN (Settings → Secrets → Actions).
+# Token scopes: Account · Workers Scripts:Edit, D1:Edit, Cloudflare Pages:Edit, Account Settings:Read.
+# Deploys are MANUAL: Actions → "Deploy (manual)" → Run workflow → type DEPLOY.
+
+name: Deploy (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DEPLOY to confirm a PRODUCTION deploy'
+        required: true
+
+jobs:
+  deploy:
+    if: ${{ github.event.inputs.confirm == 'DEPLOY' }}
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # ── Worker: install → migrate (additive) → deploy ──
+      - name: Worker install
+        working-directory: worker
+        run: npm install --no-audit --no-fund
+
+      - name: Worker typecheck + tests
+        working-directory: worker
+        run: npx tsc --noEmit && npm test
+
+      # ADD COLUMN is not idempotent; continue-on-error so re-runs (column already exists) don't block.
+      - name: D1 migration 008 (additive)
+        working-directory: worker
+        continue-on-error: true
+        run: npx wrangler d1 execute lehakwe-db --remote --file=../db/migrations/008_phase0_hardening.sql --yes
+
+      - name: Deploy worker
+        working-directory: worker
+        run: npx wrangler deploy
+        # First run provisions api.lehakwedaycare.co.za — allow a few minutes for its certificate.
+
+      # ── Manager (app.lehakwedaycare.co.za): build → deploy ──
+      - name: Manager build
+        working-directory: manager
+        run: npm ci && npm run build
+
+      - name: Deploy manager (Pages)
+        working-directory: manager
+        run: npx wrangler pages deploy dist --project-name=lehakwe-manager --branch=main
+
+      # ── Marketing site: enable once you confirm which Pages project serves the apex ──
+      # - name: Deploy site (Pages)
+      #   working-directory: site
+      #   run: npx wrangler pages deploy . --project-name=<APEX_PROJECT> --branch=main
