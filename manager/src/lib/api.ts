@@ -246,4 +246,13 @@ export const api = {
   getNotifications: () => request<any[]>('/notifications'),
   sendFeeReminders: () => request<any>('/notifications/fee-reminders', { method: 'POST' }),
   dispatchNotifications: () => request<any>('/notifications/dispatch', { method: 'POST' }),
+
+  // Funding Navigator
+  getFundingOpportunities: () => request<any[]>('/funding/opportunities'),
+  getFundingReadiness: () => request<any>('/funding/readiness'),
+  getFundingApplications: () => request<any[]>('/funding/applications'),
+  createFundingApplication: (data: any) => request<any>('/funding/applications', { method: 'POST', body: JSON.stringify(data) }),
+  updateFundingApplication: (id: string, data: any) => request<any>(`/funding/applications/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteFundingApplication: (id: string) => request<any>(`/funding/applications/${id}`, { method: 'DELETE' }),
+  generateFundingSection: (id: string, section: string, language?: string) => request<any>(`/funding/applications/${id}/generate`, { method: 'POST', body: JSON.stringify({ section, language }) }),
 };

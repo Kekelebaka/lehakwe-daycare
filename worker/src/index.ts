@@ -20,6 +20,7 @@ import mediaRoutes from './routes/media';
 import parentRoutes from './routes/parent';
 import messageRoutes from './routes/messages';
 import notificationRoutes from './routes/notifications';
+import fundingRoutes from './routes/funding';
 import { dispatchPending, resetStaleSending } from './notifications';
 
 const app = new Hono<AppEnv>();
@@ -76,6 +77,7 @@ app.route('/api', mediaRoutes);
 app.route('/api', parentRoutes);
 app.route('/api', messageRoutes);
 app.route('/api', notificationRoutes);
+app.route('/api', fundingRoutes);
 
 app.notFound((c) => c.json({ ok: false, error: 'Endpoint not found' }, 404));
 app.onError((err, c) => {
