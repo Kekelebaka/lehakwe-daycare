@@ -19,6 +19,10 @@ database_id = "aaafb847-a046-4bf1-8325-d41e6244a505"
 binding = "EMAIL_STORE"
 bucket_name = "lehakwe-emails"
 
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "lehakwe-media"
+
 [ai]
 binding = "AI"
 

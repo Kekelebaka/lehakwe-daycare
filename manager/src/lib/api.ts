@@ -65,10 +65,31 @@ export async function logout(): Promise<void> {
   clearStoredUser();
 }
 
+// ── Media (photos) ────────────────────────────────────────────
+export async function uploadMedia(childId: string, file: File, caption?: string, dailyLogId?: string): Promise<{ media_id: string }> {
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('child_id', childId);
+  if (caption) fd.append('caption', caption);
+  if (dailyLogId) fd.append('daily_log_id', dailyLogId);
+  const res = await fetch(`${API_BASE}/media`, { method: 'POST', credentials: 'include', body: fd });
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Upload failed');
+  return json.data;
+}
+// URL for an <img src>; the httpOnly cookie is sent automatically (same-site).
+export function mediaUrl(mediaId: string): string {
+  return `${API_BASE}/media/${mediaId}`;
+}
+
 // ── API methods ───────────────────────────────────────────────
 export const api = {
   getMe: () => request<any>('/me'),
   getDashboard: () => request<any>('/dashboard'),
+
+  // Media (photos)
+  getMedia: (childId?: string) => request<any[]>(`/media${childId ? `?child_id=${childId}` : ''}`),
+  deleteMedia: (id: string) => request<any>(`/media/${id}`, { method: 'DELETE' }),
 
   // Staff
   getStaff: () => request<any[]>('/staff'),

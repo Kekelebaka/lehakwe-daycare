@@ -30,6 +30,7 @@ r.get('/public/child/:token', async (c) => {
   const fees = await c.env.DB.prepare('SELECT * FROM fee_records WHERE child_id = ? ORDER BY year DESC, month DESC LIMIT 12').bind(childId).all();
   const notices = await c.env.DB.prepare('SELECT * FROM notices WHERE published = 1 ORDER BY pinned DESC, created_at DESC LIMIT 10').all();
   const settings = await c.env.DB.prepare('SELECT * FROM settings LIMIT 1').first();
+  const media = await c.env.DB.prepare('SELECT media_id, caption, created_at FROM media WHERE child_id = ? ORDER BY created_at DESC LIMIT 24').bind(childId).all();
 
   const totalDue = fees.results.reduce((s: number, f: any) => s + (f.amount_due || 0), 0);
   const totalPaid = fees.results.reduce((s: number, f: any) => s + (f.amount_paid || 0), 0);
@@ -42,6 +43,7 @@ r.get('/public/child/:token', async (c) => {
       fees: fees.results,
       notices: notices.results,
       settings,
+      media: media.results,
       balance: { total_due: totalDue, total_paid: totalPaid, outstanding: totalDue - totalPaid },
     },
   });
@@ -51,6 +53,19 @@ r.get('/public/child/:token', async (c) => {
 r.get('/public/qr/:token', (c) =>
   c.json({ ok: true, data: { url: `https://app.lehakwedaycare.co.za/parent/${c.req.param('token')}` } }),
 );
+
+// GET /api/public/media/:token/:id — token-gated image stream for the parent portal
+r.get('/public/media/:token/:id', async (c) => {
+  const row = await c.env.DB.prepare(
+    `SELECT m.r2_key, m.content_type FROM media m JOIN children c ON m.child_id = c.child_id
+     WHERE m.media_id = ? AND c.portal_token = ?
+       AND (c.portal_token_expires_at IS NULL OR c.portal_token_expires_at > datetime('now'))`,
+  ).bind(c.req.param('id'), c.req.param('token')).first<any>();
+  if (!row) return c.json({ ok: false, error: 'Not found' }, 404);
+  const obj = await c.env.MEDIA.get(row.r2_key);
+  if (!obj) return c.json({ ok: false, error: 'Not found' }, 404);
+  return new Response(obj.body, { headers: { 'Content-Type': row.content_type || 'image/jpeg', 'Cache-Control': 'private, max-age=3600' } });
+});
 
 const Enquiry = z.object({
   child_name: z.string().min(1),
