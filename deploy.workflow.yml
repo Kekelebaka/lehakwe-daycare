@@ -54,7 +54,7 @@ jobs:
         working-directory: manager
         run: npx wrangler pages deploy dist --project-name=lehakwe-manager --branch=main
 
-      # ── Marketing site: enable once you confirm which Pages project serves the apex ──
-      # - name: Deploy site (Pages)
-      #   working-directory: site
-      #   run: npx wrangler pages deploy . --project-name=<APEX_PROJECT> --branch=main
+      # ── Marketing site (lehakwedaycare.co.za → lehakwe-daycare project) ──
+      - name: Deploy site (Pages)
+        working-directory: site
+        run: npx wrangler pages deploy . --project-name=lehakwe-daycare --branch=main
