@@ -22,6 +22,7 @@ import LeaveTracker from './pages/LeaveTracker';
 import WaitlistPage from './pages/WaitlistPage';
 import ParentDashboard from './pages/ParentDashboard';
 import RoleSelector from './components/RoleSelector';
+import { Brand } from './components/ui';
 
 // ── Role Types & Context ──
 export type UserRole = 'admin' | 'staff' | 'parent';
@@ -107,9 +108,9 @@ const ROLE_BOTTOM_NAV: Record<UserRole, { path: string; label: string; icon: str
 };
 
 const ROLE_LABELS: Record<UserRole, { emoji: string; label: string; color: string }> = {
-  admin: { emoji: '🛡️', label: 'Admin', color: '#7C3AED' },
-  staff: { emoji: '👩‍🏫', label: 'Staff', color: '#0B5FB3' },
-  parent: { emoji: '👨‍👩‍👧', label: 'Parent', color: '#14B8A6' },
+  admin: { emoji: '🛡️', label: 'Admin', color: '#4B1F78' },
+  staff: { emoji: '👩‍🏫', label: 'Staff', color: '#0F9D8A' },
+  parent: { emoji: '👨‍👩‍👧', label: 'Parent', color: '#F7931E' },
 };
 
 // ── App Layout ──
@@ -156,10 +157,9 @@ function AppLayout({ children, role, onClearRole }: { children: React.ReactNode;
       {/* ── Desktop Sidebar ── */}
       <aside className="sidebar">
         <div className="sidebar-header">
-          <img src="https://i.imgur.com/0COuhlX.png" alt="Lehakwe Daycare Logo" style={{ height: 40, width: 'auto' }} />
           <div>
-            <h1>Lehakwe Manager</h1>
-            <div style={{ fontSize: '0.7rem', color: 'var(--color-muted)' }}>Powered by ChiefCare</div>
+            <Brand size="md" />
+            <div style={{ fontSize: '0.7rem', color: 'var(--color-muted)', marginTop: 4 }}>Powered by ChiefOps</div>
           </div>
         </div>
         <nav className="sidebar-nav">
@@ -213,10 +213,9 @@ function AppLayout({ children, role, onClearRole }: { children: React.ReactNode;
           <span style={{ width: 18, height: 2, background: '#073B73', borderRadius: 1 }} />
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-          <img src="https://i.imgur.com/0COuhlX.png" alt="Logo" style={{ height: 32, width: 'auto', flexShrink: 0 }} />
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#073B73', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Lehakwe Manager</div>
-            <div style={{ fontSize: '0.65rem', color: roleInfo.color, fontWeight: 500 }}>{roleInfo.emoji} {roleInfo.label}</div>
+            <Brand size="sm" />
+            <div style={{ fontSize: '0.65rem', color: roleInfo.color, fontWeight: 500, marginTop: 2 }}>{roleInfo.emoji} {roleInfo.label}</div>
           </div>
         </div>
         <div style={{
@@ -245,18 +244,17 @@ function AppLayout({ children, role, onClearRole }: { children: React.ReactNode;
         willChange: 'transform',
       }}>
         {/* Drawer Header */}
-        <div style={{ background: 'linear-gradient(135deg, #0B5FB3, #073B73)', padding: '20px 16px 16px', color: 'white' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <img src="https://i.imgur.com/0COuhlX.png" alt="Logo" style={{ height: 36 }} />
+        <div style={{ background: 'linear-gradient(135deg, var(--brand-purple), var(--brand-purple-dark))', padding: '20px 16px 16px', color: 'white' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
+            <Brand size="md" onDark />
             <button onClick={() => setDrawerOpen(false)} style={{
               width: 30, height: 30, borderRadius: 8, border: 'none',
               background: 'rgba(255,255,255,0.2)', color: 'white',
               fontSize: '1rem', cursor: 'pointer', display: 'flex',
-              alignItems: 'center', justifyContent: 'center',
+              alignItems: 'center', justifyContent: 'center', flexShrink: 0,
             }}>✕</button>
           </div>
-          <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>Lehakwe Manager</div>
-          <div style={{ fontSize: '0.68rem', opacity: 0.8, marginTop: 1 }}>Powered by ChiefCare</div>
+          <div style={{ fontSize: '0.68rem', opacity: 0.85, marginTop: 1 }}>Powered by ChiefOps</div>
           <div style={{
             marginTop: 12, display: 'flex', alignItems: 'center', gap: 10,
             background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '10px 12px',
@@ -308,7 +306,7 @@ function AppLayout({ children, role, onClearRole }: { children: React.ReactNode;
             border: '1px solid #FECACA', background: '#FEF2F2',
             cursor: 'pointer', fontSize: '0.8rem', color: '#DC2626',
           }}><span>🚪</span> Sign Out</button>
-          <div style={{ textAlign: 'center', fontSize: '0.58rem', color: '#D1D5DB', marginTop: 8 }}>Lehakwe Daycare · NPO 229-695</div>
+          <div style={{ textAlign: 'center', fontSize: '0.58rem', color: '#D1D5DB', marginTop: 8 }}>Ubuntu Daycare OS · Powered by ChiefOps</div>
         </div>
       </div>
 
