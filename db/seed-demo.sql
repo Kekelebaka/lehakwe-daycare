@@ -184,3 +184,9 @@ INSERT INTO notifications (notification_id, parent_id, child_id, type, title, bo
 DELETE FROM town_config;
 INSERT INTO town_config (town_id, town_name, coordinator_name, coordinator_email, coordinator_phone, primary_color, tagline, centres, total_children, active) VALUES
   ('demo-town','Ubuntu Town (Demo)','Coordinator Naledi','coordinator@ubuntutown.co.za','0720000099','#4B1F78','Stronger Centres. Brighter Futures. Together.',8,214,1);
+
+-- ── Funding pipeline (demo applications; opportunities come from migration 013) ─
+INSERT INTO funding_applications (application_id, opportunity_id, title, status, amount_requested, amount_awarded, submitted_at, decision_at, notes, created_by) VALUES
+  ('d-app-1','opp-dsd-subsidy','DSD ECD Subsidy — 2026 renewal','submitted',189000,NULL,'2026-06-28T09:00:00Z',NULL,'Annual per-child subsidy renewal for 13 children.','d-staff-principal'),
+  ('d-app-2','opp-lottery-infra','New playground & extra classroom','draft',450000,NULL,NULL,NULL,'Infrastructure grant to add a safe outdoor play area.','d-staff-principal'),
+  ('d-app-3','opp-smartstart','SmartStart training & materials','approved',15000,15000,'2026-05-10T09:00:00Z','2026-06-01T09:00:00Z','Practitioner training + learning materials.','d-staff-principal');
