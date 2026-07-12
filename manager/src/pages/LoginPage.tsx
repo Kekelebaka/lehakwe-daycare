@@ -1,19 +1,44 @@
-import { useState } from 'react';
-import { login, setToken, setStoredUser } from '../lib/api';
+import { useState, useEffect, useRef } from 'react';
+import { login, setStoredUser } from '../lib/api';
 
 export default function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const widgetRef = useRef<HTMLDivElement>(null);
+  const SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
+
+  // Phase 0b: render the Cloudflare Turnstile widget when a site key is configured.
+  useEffect(() => {
+    if (!SITE_KEY) return;
+    const renderWidget = () => {
+      const t = (window as any).turnstile;
+      if (t && widgetRef.current && !widgetRef.current.dataset.rendered) {
+        t.render(widgetRef.current, {
+          sitekey: SITE_KEY,
+          callback: (tok: string) => setTurnstileToken(tok),
+          'error-callback': () => setTurnstileToken(''),
+          'expired-callback': () => setTurnstileToken(''),
+        });
+        widgetRef.current.dataset.rendered = '1';
+      }
+    };
+    if (document.getElementById('cf-turnstile-script')) { renderWidget(); return; }
+    const s = document.createElement('script');
+    s.id = 'cf-turnstile-script';
+    s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    s.async = true; s.defer = true; s.onload = renderWidget;
+    document.head.appendChild(s);
+  }, [SITE_KEY]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      const { token, user } = await login(email, password);
-      setToken(token);
+      const { user } = await login(email, password, turnstileToken);
       setStoredUser(user);
       onLogin(user);
     } catch (err: any) {
@@ -97,6 +122,8 @@ export default function LoginPage({ onLogin }: { onLogin: (user: any) => void })
               {error}
             </div>
           )}
+
+          {SITE_KEY && <div ref={widgetRef} style={{ marginBottom: 16, display: 'flex', justifyContent: 'center' }} />}
 
           <button
             type="submit"

@@ -1,4 +1,4 @@
-import type { ForwardableEmailMessage, D1Database, R2Bucket } from '@cloudflare/workers-types';
+import type { ForwardableEmailMessage, D1Database, R2Bucket, KVNamespace } from '@cloudflare/workers-types';
 import { EmailMessage } from 'cloudflare:email';
 import { initDb } from './db';
 import {
@@ -22,6 +22,9 @@ interface Env {
   SENDING_DOMAIN: string;
   ALLOWED_ORIGIN: string;
   JWT_SECRET: string;
+  RESEND_API_KEY?: string;    // optional: enables outbound reply email
+  TURNSTILE_SECRET?: string;  // optional: enables login CAPTCHA verification
+  RATE_LIMIT?: KVNamespace;   // optional: enables login rate-limiting
   AI: any;
 }
 
@@ -45,6 +48,76 @@ function requiresAdmin(method: string, path: string): boolean {
   ];
   for (const [re, methods] of rules) if (re.test(path) && methods.includes(m)) return true;
   return false;
+}
+
+// ── Phase 0b: session cookie + rate-limit + email helpers ────────
+const SESSION_COOKIE = 'lehakwe_session';
+const COOKIE_DOMAIN = '.lehakwedaycare.co.za';
+
+function getCookie(request: Request, name: string): string {
+  const header = request.headers.get('Cookie') || '';
+  for (const part of header.split(';')) {
+    const eq = part.indexOf('=');
+    if (eq === -1) continue;
+    if (part.slice(0, eq).trim() === name) return decodeURIComponent(part.slice(eq + 1).trim());
+  }
+  return '';
+}
+
+function sessionCookie(token: string, maxAgeSeconds: number): string {
+  return [
+    `${SESSION_COOKIE}=${token}`,
+    'HttpOnly', 'Secure', 'SameSite=Lax', 'Path=/',
+    `Domain=${COOKIE_DOMAIN}`, `Max-Age=${maxAgeSeconds}`,
+  ].join('; ');
+}
+
+function clearedCookie(): string {
+  return `${SESSION_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=${COOKIE_DOMAIN}; Max-Age=0`;
+}
+
+// Cloudflare Turnstile verification. If no secret is configured, we skip (so the
+// worker keeps working before Turnstile is set up); set TURNSTILE_SECRET to enforce.
+async function verifyTurnstile(env: Env, token: string | undefined, ip: string): Promise<boolean> {
+  if (!env.TURNSTILE_SECRET) return true;
+  if (!token) return false;
+  try {
+    const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ secret: env.TURNSTILE_SECRET, response: token, remoteip: ip }),
+    });
+    const data = await res.json() as { success?: boolean };
+    return !!data.success;
+  } catch { return false; }
+}
+
+// KV-backed login throttling. No-ops if RATE_LIMIT is not bound.
+async function isRateLimited(env: Env, key: string, limit = 5): Promise<boolean> {
+  if (!env.RATE_LIMIT) return false;
+  const raw = await env.RATE_LIMIT.get(key);
+  return (raw ? parseInt(raw) : 0) >= limit;
+}
+async function bumpRateLimit(env: Env, key: string, windowSec = 900): Promise<void> {
+  if (!env.RATE_LIMIT) return;
+  const raw = await env.RATE_LIMIT.get(key);
+  await env.RATE_LIMIT.put(key, String((raw ? parseInt(raw) : 0) + 1), { expirationTtl: windowSec });
+}
+async function clearRateLimit(env: Env, key: string): Promise<void> {
+  if (env.RATE_LIMIT) await env.RATE_LIMIT.delete(key);
+}
+
+// Outbound email via Resend. Returns false (records only) if RESEND_API_KEY unset.
+async function sendEmailViaResend(env: Env, msg: { to: string; fromName: string; fromEmail: string; subject: string; text: string }): Promise<boolean> {
+  if (!env.RESEND_API_KEY || !msg.to) return false;
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: `${msg.fromName} <${msg.fromEmail}>`, to: [msg.to], subject: msg.subject, text: msg.text }),
+    });
+    return res.ok;
+  } catch { return false; }
 }
 
 export default {
@@ -125,6 +198,7 @@ export default {
       })(),
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Credentials': 'true',
       'Content-Type': 'application/json',
     };
 
@@ -145,31 +219,53 @@ export default {
 
     // ── POST /api/auth/login (public) ──
     if (path === '/api/auth/login' && request.method === 'POST') {
-      const { email, password } = await request.json() as { email: string; password: string };
+      const { email, password, turnstileToken } = await request.json() as { email: string; password: string; turnstileToken?: string };
       if (!email || !password) {
         return Response.json({ ok: false, error: 'Email and password required' }, { status: 400, headers: corsHeaders });
+      }
+      const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+      const rlKey = `login:${ip}:${email.toLowerCase()}`;
+      // Phase 0b: throttle brute force (KV) + verify Turnstile (both optional until configured)
+      if (await isRateLimited(env, rlKey)) {
+        return Response.json({ ok: false, error: 'Too many attempts. Please wait a few minutes and try again.' }, { status: 429, headers: corsHeaders });
+      }
+      if (!(await verifyTurnstile(env, turnstileToken, ip))) {
+        await bumpRateLimit(env, rlKey);
+        return Response.json({ ok: false, error: 'Verification failed. Please try again.' }, { status: 400, headers: corsHeaders });
       }
       const staff = await db.DB.prepare(
         'SELECT * FROM staff WHERE email = ? AND active = 1 LIMIT 1'
       ).bind(email).first<any>();
       if (!staff || !staff.password_hash) {
+        await bumpRateLimit(env, rlKey);
         return Response.json({ ok: false, error: 'Invalid credentials' }, { status: 401, headers: corsHeaders });
       }
       const valid = await verifyPassword(password, staff.password_hash);
       if (!valid) {
+        await bumpRateLimit(env, rlKey);
         return Response.json({ ok: false, error: 'Invalid credentials' }, { status: 401, headers: corsHeaders });
       }
+      await clearRateLimit(env, rlKey);
       const role = (staff.job_title === 'Centre Manager' || staff.job_title === 'Daycare Principal') ? 'admin' : 'staff';
+      const maxAge = 12 * 60 * 60; // 12h
       const payload: JwtPayload = {
         sub: staff.staff_id,
         role,
         email: staff.email,
         name: staff.full_name,
         iat: Math.floor(Date.now() / 1000),
-        exp: Math.floor(Date.now() / 1000) + 12 * 60 * 60, // 12h
+        exp: Math.floor(Date.now() / 1000) + maxAge,
       };
       const token = await signJwt(payload, env.JWT_SECRET);
-      return Response.json({ ok: true, data: { token, user: { id: staff.staff_id, name: staff.full_name, email: staff.email, role, signature: staff.signature || '' } } }, { headers: corsHeaders });
+      // Phase 0b: set the JWT as an httpOnly Secure cookie (XSS-safe). Token is still
+      // returned in the body for backward compatibility with any Bearer client.
+      const loginHeaders = { ...corsHeaders, 'Set-Cookie': sessionCookie(token, maxAge) };
+      return Response.json({ ok: true, data: { token, user: { id: staff.staff_id, name: staff.full_name, email: staff.email, role, signature: staff.signature || '' } } }, { headers: loginHeaders });
+    }
+
+    // ── POST /api/auth/logout (public): clear the session cookie ──
+    if (path === '/api/auth/logout' && request.method === 'POST') {
+      return Response.json({ ok: true, data: { loggedOut: true } }, { headers: { ...corsHeaders, 'Set-Cookie': clearedCookie() } });
     }
 
     // ── Auth guard: all /api/* except /api/public/*, /api/health, /api/auth/* ──
@@ -177,7 +273,9 @@ export default {
     const isPublic = path.startsWith('/api/public/') || path === '/api/health' || path.startsWith('/api/auth/');
     if (path.startsWith('/api/') && !isPublic) {
       const authHeader = request.headers.get('Authorization') || '';
-      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+      const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+      // Phase 0b: prefer the httpOnly session cookie; fall back to a Bearer token.
+      const token = getCookie(request, SESSION_COOKIE) || bearer;
       if (token) {
         identity = await verifyJwt(token, env.JWT_SECRET);
       }
@@ -547,12 +645,31 @@ export default {
         // Update thread status
         await db.updateStatus(thread_id, 'replied');
 
-        // Audit
-        await db.insertAudit({ id: db.uuid(), thread_id, staff_id, action: 'replied', metadata: JSON.stringify({ body_length: finalBody.length }) });
+        // Phase 0b: append the staff signature and actually send the reply via Resend.
+        let staffSig = '';
+        if (staff_id && staff_id !== 'system') {
+          const s = await db.getStaff(staff_id);
+          staffSig = s?.signature ? `\n\n${s.signature}` : '';
+        }
+        const emailText = `${finalBody}${staffSig}`;
+        const subject = original.subject && original.subject.startsWith('Re:') ? original.subject : `Re: ${original.subject}`;
+        const sent = await sendEmailViaResend(env, {
+          to: original.from_email,
+          fromName: 'Lehakwe Daycare',
+          fromEmail: `info@${env.SENDING_DOMAIN}`,
+          subject,
+          text: emailText,
+        });
 
-        // Note: email sending from HTTP Workers requires MailChannels or similar.
-        // Status is updated — the reply is recorded. Email delivery to be configured separately.
-        return Response.json({ ok: true, data: { message_id: db.uuid(), sent: false, note: 'Status updated. Configure MailChannels to enable outbound email from HTTP handlers.' } }, { headers: corsHeaders });
+        // Record the reply
+        await db.DB.prepare(
+          `INSERT INTO email_replies (reply_id, thread_id, staff_id, body, sent_to, signature_used) VALUES (?, ?, ?, ?, ?, ?)`
+        ).bind(db.uuid(), thread_id, staff_id === 'system' ? null : staff_id, emailText, original.from_email, staffSig || null).run();
+
+        // Audit
+        await db.insertAudit({ id: db.uuid(), thread_id, staff_id, action: 'replied', metadata: JSON.stringify({ body_length: finalBody.length, sent }) });
+
+        return Response.json({ ok: true, data: { message_id: db.uuid(), sent, note: sent ? 'Reply sent.' : 'Reply recorded. Set RESEND_API_KEY to enable email delivery.' } }, { headers: corsHeaders });
       }
 
       // ── GET /api/attendance?date=YYYY-MM-DD ──

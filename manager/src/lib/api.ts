@@ -1,21 +1,10 @@
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
-// ── Token management ──────────────────────────────────────────
-const TOKEN_KEY = 'lehakwe-jwt';
+// ── Session (httpOnly cookie) ─────────────────────────────────
+// Phase 0b: the JWT now lives in an httpOnly Secure cookie set by the API, so it
+// is not readable by JavaScript (XSS-safe). We keep only the non-sensitive user
+// object in localStorage for UI state; auth itself rides on the cookie.
 const USER_KEY = 'lehakwe-user';
-
-export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
-}
-
-export function setToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token);
-}
-
-export function clearToken(): void {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
-}
 
 export function getStoredUser(): any {
   const raw = localStorage.getItem(USER_KEY);
@@ -26,23 +15,27 @@ export function setStoredUser(user: any): void {
   localStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
-// ── API request with JWT ──────────────────────────────────────
+export function clearStoredUser(): void {
+  localStorage.removeItem(USER_KEY);
+}
+
+// Back-compat shims — the token is no longer stored client-side.
+export function getToken(): string | null { return null; }
+export function setToken(_token: string): void { /* no-op: session is an httpOnly cookie */ }
+export function clearToken(): void { clearStoredUser(); }
+
+// ── API request (cookie-based auth) ───────────────────────────
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...((options?.headers as Record<string, string>) || {}),
   };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers, credentials: 'include' });
 
-  // Handle 401 — token expired or invalid
+  // Handle 401 — session expired or invalid
   if (res.status === 401) {
-    clearToken();
-    // Force reload to login screen
+    clearStoredUser();
     window.location.reload();
     throw new Error('Session expired — please log in again');
   }
@@ -53,15 +46,23 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 // ── Auth ──────────────────────────────────────────────────────
-export async function login(email: string, password: string): Promise<{ token: string; user: any }> {
+export async function login(email: string, password: string, turnstileToken?: string): Promise<{ user: any }> {
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, turnstileToken }),
   });
   const json = await res.json();
   if (!json.ok) throw new Error(json.error || 'Login failed');
   return json.data;
+}
+
+export async function logout(): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' });
+  } catch { /* ignore network errors on logout */ }
+  clearStoredUser();
 }
 
 // ── API methods ───────────────────────────────────────────────
