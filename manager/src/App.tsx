@@ -21,6 +21,7 @@ import ParentLogin from './pages/ParentLogin';
 import ParentApp from './pages/ParentApp';
 import DailyLogs from './pages/DailyLogs';
 import Messages from './pages/Messages';
+import Notifications from './pages/Notifications';
 import LeaveTracker from './pages/LeaveTracker';
 import WaitlistPage from './pages/WaitlistPage';
 import ParentDashboard from './pages/ParentDashboard';
@@ -55,6 +56,7 @@ const ADMIN_NAV = [
   { path: '/fees', label: 'Fees & Finance', icon: '💰' },
   { path: '/notices', label: 'Notice Board', icon: '📢' },
   { path: '/messages', label: 'Messages', icon: '💬' },
+  { path: '/notifications', label: 'Notifications', icon: '🔔' },
   { path: '/ai', label: 'AI Assistant', icon: '🤖' },
   { path: '/leave', label: 'Leave Tracker', icon: '🏖️' },
   { path: '/waitlist', label: 'Waitlist', icon: '📋' },
@@ -443,6 +445,7 @@ function StaffApp() {
                 <Route path="/attendance" element={<Attendance />} />
                 <Route path="/daily-logs" element={<DailyLogs />} />
                 <Route path="/messages" element={<Messages />} />
+                <Route path="/notifications" element={<Notifications />} />
                 <Route path="/children" element={<Children />} />
                 <Route path="/milestones" element={<Milestones />} />
                 <Route path="/fees" element={<Fees />} />

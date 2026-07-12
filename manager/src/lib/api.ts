@@ -241,4 +241,9 @@ export const api = {
   getMessageThreads: () => request<any[]>('/messages/threads'),
   getMessageThread: (childId: string) => request<any>(`/messages/thread/${childId}`),
   sendMessage: (childId: string, body: string) => request<any>(`/messages/thread/${childId}`, { method: 'POST', body: JSON.stringify({ body }) }),
+
+  // Notifications (admin)
+  getNotifications: () => request<any[]>('/notifications'),
+  sendFeeReminders: () => request<any>('/notifications/fee-reminders', { method: 'POST' }),
+  dispatchNotifications: () => request<any>('/notifications/dispatch', { method: 'POST' }),
 };

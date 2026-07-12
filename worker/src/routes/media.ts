@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { AppEnv } from '../env';
 import { initDb } from '../db';
+import { enqueue, dispatchPending } from '../notifications';
 
 const r = new Hono<AppEnv>();
 const uid = (c: any) => c.get('identity')?.sub || 'system';
@@ -25,6 +26,23 @@ r.post('/media', async (c) => {
     `INSERT INTO media (media_id, child_id, daily_log_id, r2_key, content_type, caption, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
   ).bind(id, childId, String(form.get('daily_log_id') || '') || null, key, type, String(form.get('caption') || '') || null, uid(c)).run();
   await db.insertAudit({ id: db.uuid(), user_id: uid(c), action: 'uploaded', module_name: 'media', record_id: id, metadata: JSON.stringify({ child_id: childId }) });
+
+  // Notify the parent that a new photo is available (best-effort, deduped per photo).
+  try {
+    const child = await c.env.DB.prepare('SELECT parent_id, full_name FROM children WHERE child_id = ?').bind(childId).first<any>();
+    if (child?.parent_id) {
+      const cap = String(form.get('caption') || '');
+      await enqueue(c.env, {
+        parentId: child.parent_id, childId,
+        type: 'photo',
+        title: `New photo of ${child.full_name}`,
+        body: `${child.full_name}'s teachers added a new photo${cap ? `: "${cap}"` : ''}. Open your parent app to see it.`,
+        dedupeKey: `photo:${id}`,
+      });
+      try { c.executionCtx.waitUntil(dispatchPending(c.env)); } catch { await dispatchPending(c.env); }
+    }
+  } catch { /* notifications are best-effort */ }
+
   return c.json({ ok: true, data: { media_id: id } });
 });
 

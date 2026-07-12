@@ -19,6 +19,8 @@ import adminRoutes from './routes/admin';
 import mediaRoutes from './routes/media';
 import parentRoutes from './routes/parent';
 import messageRoutes from './routes/messages';
+import notificationRoutes from './routes/notifications';
+import { dispatchPending, resetStaleSending } from './notifications';
 
 const app = new Hono<AppEnv>();
 
@@ -73,6 +75,7 @@ app.route('/api', adminRoutes);
 app.route('/api', mediaRoutes);
 app.route('/api', parentRoutes);
 app.route('/api', messageRoutes);
+app.route('/api', notificationRoutes);
 
 app.notFound((c) => c.json({ ok: false, error: 'Endpoint not found' }, 404));
 app.onError((err, c) => {
@@ -117,4 +120,13 @@ async function email(message: ForwardableEmailMessage, env: Env, _ctx: Execution
   await db.insertAudit({ id: db.uuid(), thread_id: threadId, staff_id: 'system', action: 'received', metadata: JSON.stringify({ from: parsed.from, subject: parsed.subject, forwarded_to: forwardEmails }) });
 }
 
-export default { fetch: app.fetch, email };
+// ── Cron trigger: flush the notification outbox (retry safety-net; prompt
+// delivery still happens inline via waitUntil at each enqueue point) ──
+async function scheduled(_event: any, env: Env, ctx: ExecutionContext): Promise<void> {
+  ctx.waitUntil((async () => {
+    await resetStaleSending(env);
+    await dispatchPending(env, 100);
+  })());
+}
+
+export default { fetch: app.fetch, email, scheduled };
