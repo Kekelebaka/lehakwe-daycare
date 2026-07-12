@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, FormEvent } from 'react';
 import { parentApi } from '../lib/api';
 import { Brand } from '../components/ui';
 
@@ -8,6 +8,9 @@ export default function ParentApp() {
   const [childId, setChildId] = useState('');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [msgs, setMsgs] = useState<any[]>([]);
+  const [msgText, setMsgText] = useState('');
+  const [sendingMsg, setSendingMsg] = useState(false);
 
   useEffect(() => {
     parentApi.me()
@@ -25,6 +28,24 @@ export default function ParentApp() {
     setLoading(true);
     parentApi.child(childId).then((j) => { if (j.ok) setData(j.data); }).finally(() => setLoading(false));
   }, [childId]);
+
+  useEffect(() => {
+    if (!childId) { setMsgs([]); return; }
+    parentApi.messages(childId).then((j) => { if (j.ok) setMsgs(j.data.messages || []); }).catch(() => {});
+  }, [childId]);
+
+  const sendMsg = async (e: FormEvent) => {
+    e.preventDefault();
+    const body = msgText.trim();
+    if (!body) return;
+    setSendingMsg(true);
+    try {
+      await parentApi.sendMessage(childId, body);
+      setMsgText('');
+      const j = await parentApi.messages(childId);
+      if (j.ok) setMsgs(j.data.messages || []);
+    } catch { /* ignore */ } finally { setSendingMsg(false); }
+  };
 
   const doLogout = async () => { try { await parentApi.logout(); } catch { /* ignore */ } window.location.href = '/parent-login'; };
 
@@ -81,6 +102,29 @@ export default function ParentApp() {
             )}
           </div>
 
+          <div style={{ ...cardS, marginBottom: 16 }}>
+            <div style={{ ...capS, marginBottom: 10 }}>💬 Messages with the centre</div>
+            <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+              {msgs.length === 0 ? (
+                <div style={{ color: '#9CA3AF', fontSize: '0.85rem' }}>No messages yet — send your child's teachers a note 👋</div>
+              ) : (
+                msgs.map((m) => {
+                  const mine = m.sender_type === 'parent';
+                  return (
+                    <div key={m.message_id} style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '82%' }}>
+                      <div style={{ background: mine ? '#4B1F78' : '#F1EEF8', color: mine ? 'white' : '#14213A', padding: '8px 12px', borderRadius: 12, fontSize: '0.86rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{m.body}</div>
+                      <div style={{ fontSize: '0.62rem', color: '#9CA3AF', marginTop: 2, textAlign: mine ? 'right' : 'left' }}>{mine ? 'You' : (m.sender_name || 'Centre')} · {fmtTime(m.created_at)}{mine && m.read_at ? ' · Read' : ''}</div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <form onSubmit={sendMsg} style={{ display: 'flex', gap: 8 }}>
+              <input value={msgText} onChange={(e) => setMsgText(e.target.value)} placeholder="Write a message…" style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid #E5E7EB', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+              <button type="submit" disabled={sendingMsg || !msgText.trim()} style={{ background: '#4B1F78', color: 'white', border: 'none', borderRadius: 10, padding: '0 16px', fontWeight: 700, fontSize: '0.9rem', cursor: sendingMsg || !msgText.trim() ? 'not-allowed' : 'pointer', opacity: sendingMsg || !msgText.trim() ? 0.6 : 1 }}>Send</button>
+            </form>
+          </div>
+
           <div style={cardS}>
             <div style={{ ...capS, marginBottom: 10 }}>📢 Notices</div>
             {notices.length === 0 ? (
@@ -104,3 +148,9 @@ export default function ParentApp() {
 
 const cardS: CSSProperties = { background: 'white', borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' };
 const capS: CSSProperties = { fontSize: '0.72rem', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' };
+
+function fmtTime(s: string): string {
+  if (!s) return '';
+  const d = new Date(s.includes('T') ? s : `${s.replace(' ', 'T')}Z`);
+  return isNaN(d.getTime()) ? '' : d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}

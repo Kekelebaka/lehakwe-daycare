@@ -18,6 +18,7 @@ import commsRoutes from './routes/comms';
 import adminRoutes from './routes/admin';
 import mediaRoutes from './routes/media';
 import parentRoutes from './routes/parent';
+import messageRoutes from './routes/messages';
 
 const app = new Hono<AppEnv>();
 
@@ -71,6 +72,7 @@ app.route('/api', commsRoutes);
 app.route('/api', adminRoutes);
 app.route('/api', mediaRoutes);
 app.route('/api', parentRoutes);
+app.route('/api', messageRoutes);
 
 app.notFound((c) => c.json({ ok: false, error: 'Endpoint not found' }, 404));
 app.onError((err, c) => {
