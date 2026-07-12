@@ -3,6 +3,13 @@ main = "src/index.ts"
 compatibility_date = "2025-06-09"
 account_id = "c63d3d6d8c17db7487ab40b81d5e29d1"
 
+# Phase 0b: serve the API first-party at api.lehakwedaycare.co.za so the session
+# cookie is first-party across app.* and api.* (Safari blocks third-party cookies).
+# Wrangler provisions the DNS record + managed certificate on deploy.
+routes = [
+  { pattern = "api.lehakwedaycare.co.za", custom_domain = true }
+]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "lehakwe-db"
@@ -14,6 +21,18 @@ bucket_name = "lehakwe-emails"
 
 [ai]
 binding = "AI"
+
+# Phase 0b: login rate-limiting store. Create it, then uncomment + paste the id:
+#   wrangler kv namespace create RATE_LIMIT
+# [[kv_namespaces]]
+# binding = "RATE_LIMIT"
+# id = "<paste-kv-namespace-id>"
+
+# Phase 0b secrets — set via `wrangler secret put <NAME>` (never commit):
+#   TURNSTILE_SECRET   Cloudflare Turnstile secret key (enables login CAPTCHA)
+#   RESEND_API_KEY     Resend API key (enables outbound reply email; verify the
+#                      sending domain in Resend first)
+#   JWT_SECRET         HMAC signing key (if not already set)
 
 [vars]
 FORWARD_EMAILS = "nolaphamorakabee@gmail.com,sophylebaka@gmail.com"

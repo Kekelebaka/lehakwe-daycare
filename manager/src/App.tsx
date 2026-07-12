@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, createContext, useContext } from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import { api, getToken, getStoredUser, clearToken } from './lib/api';
+import { api, getStoredUser, logout } from './lib/api';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
 import Inbox from './pages/Inbox';
@@ -385,7 +385,7 @@ function AppLayout({ children, role, onClearRole }: { children: React.ReactNode;
 
 // ── Root App ──
 export default function App() {
-  const [authenticated, setAuthenticated] = useState<boolean>(() => !!getToken());
+  const [authenticated, setAuthenticated] = useState<boolean>(() => !!getStoredUser());
   const [role, setRole] = useState<UserRole | null>(() => {
     const stored = localStorage.getItem('lehakwe-role');
     return (stored as UserRole) || null;
@@ -413,7 +413,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    clearToken();
+    logout();
     setAuthenticated(false);
     setRole(null);
     localStorage.removeItem('lehakwe-role');
