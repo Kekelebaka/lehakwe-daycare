@@ -1,0 +1,161 @@
+import { Hono } from 'hono';
+import type { AppEnv } from '../env';
+import { initDb } from '../db';
+
+const r = new Hono<AppEnv>();
+const uid = (c: any) => c.get('identity')?.sub || 'admin';
+
+// ── SETTINGS ────────────────────────────────────────────────────
+r.get('/settings', async (c) => {
+  const rows = await c.env.DB.prepare('SELECT * FROM settings').all();
+  const obj: Record<string, string> = {};
+  for (const row of rows.results as any[]) obj[row.setting_key] = row.setting_value;
+  return c.json({ ok: true, data: obj });
+});
+r.put('/settings', async (c) => {
+  const { settings } = (await c.req.json().catch(() => ({ settings: {} }))) as { settings: Record<string, string> };
+  const db = initDb(c.env.DB);
+  const stmt = c.env.DB.prepare(
+    `INSERT INTO settings (setting_key, setting_value, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = datetime('now')`,
+  );
+  const batch = Object.entries(settings).map(([k, v]) => stmt.bind(k, v));
+  if (batch.length) await c.env.DB.batch(batch);
+  await db.insertAudit({ id: db.uuid(), user_id: uid(c), action: 'updated', module_name: 'settings', record_id: 'bulk', metadata: JSON.stringify({ keys: Object.keys(settings) }) });
+  return c.json({ ok: true });
+});
+
+// ── COMPLIANCE ──────────────────────────────────────────────────
+r.get('/compliance', async (c) => {
+  const rows = await c.env.DB.prepare('SELECT * FROM compliance_items ORDER BY category ASC').all();
+  return c.json({ ok: true, data: rows.results });
+});
+r.put('/compliance/:id', async (c) => {
+  const { status, notes } = (await c.req.json().catch(() => ({}))) as { status: string; notes?: string };
+  await c.env.DB.prepare("UPDATE compliance_items SET status = ?, notes = ?, updated_at = datetime('now') WHERE compliance_id = ?").bind(status, notes || null, c.req.param('id')).run();
+  return c.json({ ok: true });
+});
+
+// ── DOCUMENTS ───────────────────────────────────────────────────
+r.get('/documents', async (c) => {
+  const entityType = c.req.query('related_entity_type');
+  const entityId = c.req.query('related_entity_id');
+  let query = 'SELECT * FROM documents';
+  const p: any[] = [];
+  if (entityType && entityId) { query += ' WHERE related_entity_type = ? AND related_entity_id = ?'; p.push(entityType, entityId); }
+  else if (entityType) { query += ' WHERE related_entity_type = ?'; p.push(entityType); }
+  query += ' ORDER BY uploaded_at DESC';
+  const rows = await c.env.DB.prepare(query).bind(...p).all();
+  return c.json({ ok: true, data: rows.results });
+});
+r.post('/documents', async (c) => {
+  const d = (await c.req.json().catch(() => ({}))) as any;
+  const db = initDb(c.env.DB);
+  const id = db.uuid();
+  await c.env.DB.prepare(
+    `INSERT INTO documents (document_id, related_entity_type, related_entity_id, document_type, title, expiry_date, file_url, status, uploaded_by, uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+  ).bind(id, d.related_entity_type, d.related_entity_id, d.document_type, d.title, d.expiry_date || null, d.file_url || null, d.status || 'active', d.uploaded_by || null).run();
+  await db.insertAudit({ id: db.uuid(), user_id: uid(c), action: 'created', module_name: 'documents', record_id: id, metadata: JSON.stringify(d) });
+  return c.json({ ok: true, data: { document_id: id } });
+});
+r.delete('/documents/:id', async (c) => {
+  const id = c.req.param('id');
+  const db = initDb(c.env.DB);
+  await c.env.DB.prepare('DELETE FROM documents WHERE document_id = ?').bind(id).run();
+  await db.insertAudit({ id: db.uuid(), user_id: uid(c), action: 'deleted', module_name: 'documents', record_id: id, metadata: '{}' });
+  return c.json({ ok: true });
+});
+
+// ── WAITLIST ────────────────────────────────────────────────────
+r.get('/waitlist', async (c) => {
+  const rows = await c.env.DB.prepare('SELECT * FROM waitlist ORDER BY position ASC, created_at ASC').all();
+  return c.json({ ok: true, data: rows.results });
+});
+r.post('/waitlist', async (c) => {
+  const b = (await c.req.json().catch(() => ({}))) as any;
+  if (!b.child_name) return c.json({ ok: false, error: 'child_name is required.' }, 400);
+  const id = crypto.randomUUID();
+  const maxPos = await c.env.DB.prepare('SELECT MAX(position) AS max_pos FROM waitlist').first<{ max_pos: number }>();
+  const position = (maxPos?.max_pos || 0) + 1;
+  await c.env.DB.prepare(
+    `INSERT INTO waitlist (waitlist_id, child_name, parent_name, parent_phone, parent_email, age_group, preferred_start_date, status, notes, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(id, b.child_name, b.parent_name || null, b.parent_phone || null, b.parent_email || null, b.age_group || null, b.preferred_start_date || null, b.status || 'waiting', b.notes || null, position).run();
+  return c.json({ ok: true, data: { id, position } });
+});
+r.put('/waitlist/:id', async (c) => {
+  const b = (await c.req.json().catch(() => ({}))) as any;
+  const f: string[] = [];
+  const v: any[] = [];
+  if (b.status !== undefined) { f.push('status = ?'); v.push(b.status); }
+  if (b.position !== undefined) { f.push('position = ?'); v.push(b.position); }
+  if (b.notes !== undefined) { f.push('notes = ?'); v.push(b.notes); }
+  f.push("updated_at = datetime('now')");
+  if (f.length === 1) return c.json({ ok: false, error: 'No fields' }, 400);
+  v.push(c.req.param('id'));
+  await c.env.DB.prepare(`UPDATE waitlist SET ${f.join(', ')} WHERE waitlist_id = ?`).bind(...v).run();
+  return c.json({ ok: true });
+});
+r.delete('/waitlist/:id', async (c) => {
+  await c.env.DB.prepare('DELETE FROM waitlist WHERE waitlist_id = ?').bind(c.req.param('id')).run();
+  return c.json({ ok: true });
+});
+
+// ── LEAVE ───────────────────────────────────────────────────────
+r.get('/leave', async (c) => {
+  const status = c.req.query('status');
+  const staffId = c.req.query('staff_id');
+  let query = 'SELECT lr.*, s.full_name AS staff_name FROM leave_requests lr LEFT JOIN staff s ON lr.staff_id = s.staff_id WHERE 1=1';
+  const p: any[] = [];
+  if (status) { query += ' AND lr.status = ?'; p.push(status); }
+  if (staffId) { query += ' AND lr.staff_id = ?'; p.push(staffId); }
+  query += ' ORDER BY lr.created_at DESC';
+  const rows = p.length ? await c.env.DB.prepare(query).bind(...p).all() : await c.env.DB.prepare(query).all();
+  return c.json({ ok: true, data: rows.results });
+});
+r.post('/leave', async (c) => {
+  const b = (await c.req.json().catch(() => ({}))) as any;
+  if (!b.staff_id || !b.leave_type || !b.start_date || !b.end_date) return c.json({ ok: false, error: 'staff_id, leave_type, start_date and end_date are required.' }, 400);
+  const db = initDb(c.env.DB);
+  const id = crypto.randomUUID();
+  await c.env.DB.prepare(
+    `INSERT INTO leave_requests (leave_id, staff_id, leave_type, start_date, end_date, reason, status) VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
+  ).bind(id, b.staff_id, b.leave_type, b.start_date, b.end_date, b.reason || null).run();
+  await db.insertAudit({ id: db.uuid(), user_id: uid(c), action: 'created', module_name: 'leave_requests', record_id: id, metadata: JSON.stringify(b) });
+  return c.json({ ok: true, data: { leave_id: id } });
+});
+r.put('/leave/:id', async (c) => {
+  const b = (await c.req.json().catch(() => ({}))) as any;
+  const db = initDb(c.env.DB);
+  const f: string[] = [];
+  const v: any[] = [];
+  if (b.status !== undefined) { f.push('status = ?'); v.push(b.status); }
+  if (b.approved_by !== undefined) { f.push('approved_by = ?'); v.push(b.approved_by); }
+  if (b.reason !== undefined) { f.push('reason = ?'); v.push(b.reason); }
+  if (!f.length) return c.json({ ok: false, error: 'No fields to update' }, 400);
+  v.push(c.req.param('id'));
+  await c.env.DB.prepare(`UPDATE leave_requests SET ${f.join(', ')} WHERE leave_id = ?`).bind(...v).run();
+  await db.insertAudit({ id: db.uuid(), user_id: uid(c), action: 'updated', module_name: 'leave_requests', record_id: c.req.param('id'), metadata: JSON.stringify(b) });
+  return c.json({ ok: true });
+});
+r.delete('/leave/:id', async (c) => {
+  const id = c.req.param('id');
+  const db = initDb(c.env.DB);
+  await c.env.DB.prepare('DELETE FROM leave_requests WHERE leave_id = ?').bind(id).run();
+  await db.insertAudit({ id: db.uuid(), user_id: uid(c), action: 'deleted', module_name: 'leave_requests', record_id: id, metadata: '{}' });
+  return c.json({ ok: true });
+});
+
+// ── TOWN ────────────────────────────────────────────────────────
+r.get('/town/config', async (c) => {
+  const rows = await c.env.DB.prepare('SELECT * FROM town_config WHERE active = 1').all();
+  return c.json({ ok: true, data: rows.results });
+});
+r.get('/town/stats', async (c) => {
+  const [children, staff, centres] = await Promise.all([
+    c.env.DB.prepare("SELECT COUNT(*) as count FROM children WHERE status = 'active'").first<{ count: number }>(),
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM staff WHERE active = 1').first<{ count: number }>(),
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM town_config WHERE active = 1').first<{ count: number }>(),
+  ]);
+  return c.json({ ok: true, data: { total_children: children?.count || 0, total_staff: staff?.count || 0, total_centres: centres?.count || 0, town: 'Bloemfontein', coordinator: 'Keke Lebaka' } });
+});
+
+export default r;
