@@ -3,7 +3,11 @@ import type { Env } from './env';
 
 // ── Session cookie ───────────────────────────────────────────────
 export const SESSION_COOKIE = 'lehakwe_session';
-const COOKIE_DOMAIN = '.lehakwedaycare.co.za';
+export const DEFAULT_COOKIE_DOMAIN = '.lehakwedaycare.co.za';
+// Per-instance cookie domain — the demo/tenant workers set COOKIE_DOMAIN; defaults to Lehakwe.
+export function cookieDomain(env: { COOKIE_DOMAIN?: string }): string {
+  return env.COOKIE_DOMAIN || DEFAULT_COOKIE_DOMAIN;
+}
 
 export function getCookie(request: Request, name: string): string {
   const header = request.headers.get('Cookie') || '';
@@ -15,29 +19,29 @@ export function getCookie(request: Request, name: string): string {
   return '';
 }
 
-export function sessionCookie(token: string, maxAgeSeconds: number): string {
+export function sessionCookie(token: string, maxAgeSeconds: number, domain: string = DEFAULT_COOKIE_DOMAIN): string {
   return [
     `${SESSION_COOKIE}=${token}`,
     'HttpOnly', 'Secure', 'SameSite=Lax', 'Path=/',
-    `Domain=${COOKIE_DOMAIN}`, `Max-Age=${maxAgeSeconds}`,
+    `Domain=${domain}`, `Max-Age=${maxAgeSeconds}`,
   ].join('; ');
 }
 
-export function clearedCookie(): string {
-  return `${SESSION_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=${COOKIE_DOMAIN}; Max-Age=0`;
+export function clearedCookie(domain: string = DEFAULT_COOKIE_DOMAIN): string {
+  return `${SESSION_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=${domain}; Max-Age=0`;
 }
 
 // Parent session cookie (separate name so parent + staff sessions never collide).
 export const PARENT_COOKIE = 'lehakwe_parent';
-export function parentSessionCookie(token: string, maxAgeSeconds: number): string {
+export function parentSessionCookie(token: string, maxAgeSeconds: number, domain: string = DEFAULT_COOKIE_DOMAIN): string {
   return [
     `${PARENT_COOKIE}=${token}`,
     'HttpOnly', 'Secure', 'SameSite=Lax', 'Path=/',
-    `Domain=${COOKIE_DOMAIN}`, `Max-Age=${maxAgeSeconds}`,
+    `Domain=${domain}`, `Max-Age=${maxAgeSeconds}`,
   ].join('; ');
 }
-export function clearedParentCookie(): string {
-  return `${PARENT_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=${COOKIE_DOMAIN}; Max-Age=0`;
+export function clearedParentCookie(domain: string = DEFAULT_COOKIE_DOMAIN): string {
+  return `${PARENT_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=${domain}; Max-Age=0`;
 }
 
 // SHA-256 hex — OTP codes are stored hashed, never in plaintext.

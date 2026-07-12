@@ -4,7 +4,7 @@ import type { AppEnv } from '../env';
 import { initDb } from '../db';
 import { signJwt, verifyJwt, type JwtPayload } from '../auth';
 import {
-  PARENT_COOKIE, getCookie, parentSessionCookie, clearedParentCookie,
+  PARENT_COOKIE, getCookie, parentSessionCookie, clearedParentCookie, cookieDomain,
   sha256hex, timingSafeEqualStr, isRateLimited, bumpRateLimit, sendOtp,
 } from '../lib';
 import { getOrCreateThread, markThreadRead, insertThreadMessage } from '../messaging';
@@ -46,7 +46,7 @@ r.post('/parent/request-otp', async (c) => {
   }
 
   if (parent) {
-    const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
+    const code = c.env.DEMO_MODE === 'true' ? '123456' : String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
     const codeHash = await sha256hex(`${code}:${c.env.JWT_SECRET}`);
     const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     await c.env.DB.prepare('UPDATE otp_codes SET consumed = 1 WHERE identifier = ? AND consumed = 0').bind(raw.toLowerCase()).run();
@@ -86,13 +86,13 @@ r.post('/parent/verify-otp', async (c) => {
   const now = Math.floor(Date.now() / 1000);
   const payload: JwtPayload = { sub: parent.parent_id, role: 'parent', email: parent.email || '', name: parent.full_name || 'Parent', iat: now, exp: now + maxAge };
   const token = await signJwt(payload, c.env.JWT_SECRET);
-  c.header('Set-Cookie', parentSessionCookie(token, maxAge));
+  c.header('Set-Cookie', parentSessionCookie(token, maxAge, cookieDomain(c.env)));
   return c.json({ ok: true, data: { parent: { id: parent.parent_id, name: parent.full_name } } });
 });
 
 // POST /api/parent/logout (public) — clear the parent cookie.
 r.post('/parent/logout', (c) => {
-  c.header('Set-Cookie', clearedParentCookie());
+  c.header('Set-Cookie', clearedParentCookie(cookieDomain(c.env)));
   return c.json({ ok: true, data: { loggedOut: true } });
 });
 
