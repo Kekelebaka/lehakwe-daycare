@@ -99,6 +99,8 @@ export const parentApi = {
   me: () => fetch(`${API_BASE}/parent/me`, { credentials: 'include' }).then((r) => r.json()),
   child: (id: string) => fetch(`${API_BASE}/parent/child/${id}`, { credentials: 'include' }).then((r) => r.json()),
   mediaUrl: (id: string) => `${API_BASE}/parent/media/${id}`,
+  messages: (childId: string) => fetch(`${API_BASE}/parent/messages/${childId}`, { credentials: 'include' }).then((r) => r.json()),
+  sendMessage: (childId: string, body: string) => parentPost(`/parent/messages/${childId}`, { body }),
 };
 
 // ── API methods ───────────────────────────────────────────────
@@ -234,4 +236,9 @@ export const api = {
   },
   createDailyLog: (data: any) => request<any>('/daily-logs', { method: 'POST', body: JSON.stringify(data) }),
   deleteDailyLog: (id: string) => request<any>(`/daily-logs/${id}`, { method: 'DELETE' }),
+
+  // Messaging (staff ↔ parents), one thread per child
+  getMessageThreads: () => request<any[]>('/messages/threads'),
+  getMessageThread: (childId: string) => request<any>(`/messages/thread/${childId}`),
+  sendMessage: (childId: string, body: string) => request<any>(`/messages/thread/${childId}`, { method: 'POST', body: JSON.stringify({ body }) }),
 };

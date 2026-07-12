@@ -7,6 +7,7 @@ import {
   PARENT_COOKIE, getCookie, parentSessionCookie, clearedParentCookie,
   sha256hex, timingSafeEqualStr, isRateLimited, bumpRateLimit, sendOtp,
 } from '../lib';
+import { getOrCreateThread, markThreadRead, insertThreadMessage } from '../messaging';
 
 const r = new Hono<AppEnv>();
 
@@ -137,6 +138,57 @@ r.get('/parent/media/:id', async (c) => {
   const obj = await c.env.MEDIA.get(row.r2_key);
   if (!obj) return c.json({ ok: false, error: 'Not found' }, 404);
   return new Response(obj.body, { headers: { 'Content-Type': row.content_type || 'image/jpeg', 'Cache-Control': 'private, max-age=3600' } });
+});
+
+// ── Two-way messaging (parent side) — mirrors /api/messages/* on the staff side ──
+const MsgBody = z.object({ body: z.string().trim().min(1).max(4000) });
+
+// GET /api/parent/messages — the parent's children with unread counts (staff→parent).
+r.get('/parent/messages', async (c) => {
+  const p = await currentParent(c);
+  if (!p) return c.json({ ok: false, error: 'Not signed in' }, 401);
+  const rows = await c.env.DB.prepare(
+    `SELECT c.child_id, c.full_name AS child_name,
+            t.thread_id, t.last_message_at,
+            (SELECT body FROM thread_messages WHERE thread_id = t.thread_id ORDER BY created_at DESC LIMIT 1) AS last_body,
+            (SELECT COUNT(*) FROM thread_messages WHERE thread_id = t.thread_id AND sender_type = 'staff' AND read_at IS NULL) AS unread
+     FROM children c
+     LEFT JOIN message_threads t ON t.child_id = c.child_id
+     WHERE c.parent_id = ?
+     ORDER BY (t.last_message_at IS NULL), t.last_message_at DESC, c.full_name ASC`,
+  ).bind(p.sub).all();
+  return c.json({ ok: true, data: rows.results });
+});
+
+// GET /api/parent/messages/:childId — a child's conversation, ONLY if it's this parent's child.
+r.get('/parent/messages/:childId', async (c) => {
+  const p = await currentParent(c);
+  if (!p) return c.json({ ok: false, error: 'Not signed in' }, 401);
+  const childId = c.req.param('childId');
+  const child = await c.env.DB.prepare('SELECT child_id, full_name FROM children WHERE child_id = ? AND parent_id = ?').bind(childId, p.sub).first<any>();
+  if (!child) return c.json({ ok: false, error: 'Not found' }, 404);
+  const t = await getOrCreateThread(c.env.DB, childId);
+  if (!t) return c.json({ ok: false, error: 'Not found' }, 404);
+  await markThreadRead(c.env.DB, t.thread_id, 'parent');
+  const msgs = await c.env.DB.prepare(
+    'SELECT message_id, sender_type, sender_name, body, read_at, created_at FROM thread_messages WHERE thread_id = ? ORDER BY created_at ASC',
+  ).bind(t.thread_id).all();
+  return c.json({ ok: true, data: { thread_id: t.thread_id, child, messages: msgs.results } });
+});
+
+// POST /api/parent/messages/:childId — parent replies to the centre.
+r.post('/parent/messages/:childId', async (c) => {
+  const p = await currentParent(c);
+  if (!p) return c.json({ ok: false, error: 'Not signed in' }, 401);
+  const parsed = MsgBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ ok: false, error: 'Message cannot be empty.' }, 400);
+  const childId = c.req.param('childId');
+  const child = await c.env.DB.prepare('SELECT child_id FROM children WHERE child_id = ? AND parent_id = ?').bind(childId, p.sub).first<any>();
+  if (!child) return c.json({ ok: false, error: 'Not found' }, 404);
+  const t = await getOrCreateThread(c.env.DB, childId);
+  if (!t) return c.json({ ok: false, error: 'Not found' }, 404);
+  const msg = await insertThreadMessage(c.env.DB, t.thread_id, 'parent', p.sub, p.name || 'Parent', parsed.data.body);
+  return c.json({ ok: true, data: msg });
 });
 
 export default r;

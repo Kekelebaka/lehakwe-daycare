@@ -20,6 +20,7 @@ import ParentPortal from './pages/ParentPortal';
 import ParentLogin from './pages/ParentLogin';
 import ParentApp from './pages/ParentApp';
 import DailyLogs from './pages/DailyLogs';
+import Messages from './pages/Messages';
 import LeaveTracker from './pages/LeaveTracker';
 import WaitlistPage from './pages/WaitlistPage';
 import ParentDashboard from './pages/ParentDashboard';
@@ -53,6 +54,7 @@ const ADMIN_NAV = [
   { path: '/milestones', label: 'Milestones', icon: '🎯' },
   { path: '/fees', label: 'Fees & Finance', icon: '💰' },
   { path: '/notices', label: 'Notice Board', icon: '📢' },
+  { path: '/messages', label: 'Messages', icon: '💬' },
   { path: '/ai', label: 'AI Assistant', icon: '🤖' },
   { path: '/leave', label: 'Leave Tracker', icon: '🏖️' },
   { path: '/waitlist', label: 'Waitlist', icon: '📋' },
@@ -68,6 +70,7 @@ const STAFF_NAV = [
   { path: '/', label: 'Dashboard', icon: '📊' },
   { path: '/attendance', label: 'Attendance', icon: '📋' },
   { path: '/daily-logs', label: 'Daily Logs', icon: '📝' },
+  { path: '/messages', label: 'Messages', icon: '💬' },
   { path: '/inbox', label: 'Inbox', icon: '✉️' },
   { path: '/payslips', label: 'Payslips', icon: '💸' },
   { path: '/notices', label: 'Notice Board', icon: '📢' },
@@ -439,6 +442,7 @@ function StaffApp() {
                 <Route path="/inbox" element={<Inbox />} />
                 <Route path="/attendance" element={<Attendance />} />
                 <Route path="/daily-logs" element={<DailyLogs />} />
+                <Route path="/messages" element={<Messages />} />
                 <Route path="/children" element={<Children />} />
                 <Route path="/milestones" element={<Milestones />} />
                 <Route path="/fees" element={<Fees />} />
