@@ -1,0 +1,66 @@
+# ⚠️ ACTIVATION: move this file to .github/workflows/ci.yml to enable CI.
+#   git mv ci.workflow.yml .github/workflows/ci.yml && git commit -m "ci: activate workflow" && git push
+# (The integration that opened this PR can't write to .github/workflows/, so it's parked here.)
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  worker:
+    name: worker · typecheck + test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # worker/package.json gains vitest, so its lockfile may lag — use install, not ci.
+      - run: npm install --no-audit --no-fund
+      - run: npx tsc --noEmit
+      - run: npm test
+
+  manager:
+    name: manager · typecheck + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: manager
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run build
+
+  inbox:
+    name: inbox · build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: inbox
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run build
+
+  lint:
+    name: lint (informational)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npx --yes @biomejs/biome ci . || true
