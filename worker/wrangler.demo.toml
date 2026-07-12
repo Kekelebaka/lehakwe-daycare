@@ -15,9 +15,12 @@ main = "src/index.ts"
 compatibility_date = "2025-06-09"
 account_id = "c63d3d6d8c17db7487ab40b81d5e29d1"
 
-routes = [
-  { pattern = "demo-api.daycareos.ubuntutown.co.za", custom_domain = true }
-]
+# Custom domain (demo-api.daycareos.ubuntutown.co.za) is attached AFTER deploy via the
+# Cloudflare API (the deploy token lacks DNS scope). Left commented so `wrangler deploy`
+# only uploads the script and can't fail on a DNS step.
+# routes = [
+#   { pattern = "demo-api.daycareos.ubuntutown.co.za", custom_domain = true }
+# ]
 
 [[d1_databases]]
 binding = "DB"
