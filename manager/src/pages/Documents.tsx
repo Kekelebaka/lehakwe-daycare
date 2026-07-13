@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 
 const DOC_TYPES = ['Birth Certificate', 'Immunisation Card', 'ID Copy', 'Contract', 'Registration Form', 'Consent Form', 'Other'];
-const ENTITY_TYPES = ['child', 'parent', 'staff'];
+const ENTITY_TYPES = ['centre', 'child', 'parent', 'staff'];
 
 const EMPTY_FORM = {
-  title: '', document_type: DOC_TYPES[0], related_entity_type: 'child',
+  title: '', document_type: DOC_TYPES[0], related_entity_type: 'centre',
   related_entity_id: '', expiry_date: '', file_url: '', status: 'active',
 };
 
@@ -18,6 +18,7 @@ export default function Documents() {
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [filter, setFilter] = useState('all');
+  const [file, setFile] = useState<File | null>(null);
 
   const loadDocuments = () => {
     setLoading(true);
@@ -35,17 +36,25 @@ export default function Documents() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim()) { setFormError('Title is required.'); return; }
-    if (!form.document_type) { setFormError('Document type is required.'); return; }
-    if (!form.related_entity_id.trim()) { setFormError('Related entity ID is required.'); return; }
+    if (!file && !form.file_url.trim()) { setFormError('Attach a file or paste a file URL.'); return; }
     setSaving(true);
     setFormError('');
     try {
-      await api.createDocument({
-        ...form,
-        status: form.expiry_date && new Date(form.expiry_date) < new Date() ? 'expired' : 'active',
-      });
-      setFormSuccess('Document added successfully.');
+      if (file) {
+        await api.uploadDocument(file, {
+          title: form.title, document_type: form.document_type,
+          related_entity_type: form.related_entity_type, related_entity_id: form.related_entity_id,
+          expiry_date: form.expiry_date,
+        });
+      } else {
+        await api.createDocument({
+          ...form,
+          status: form.expiry_date && new Date(form.expiry_date) < new Date() ? 'expired' : 'active',
+        });
+      }
+      setFormSuccess('Document saved successfully.');
       setForm({ ...EMPTY_FORM });
+      setFile(null);
       loadDocuments();
       setTimeout(() => { setShowForm(false); setFormSuccess(''); }, 1500);
     } catch (err) {
@@ -152,10 +161,10 @@ export default function Documents() {
                 </div>
 
                 <div>
-                  <label style={labelStyle}>Related Entity ID *</label>
+                  <label style={labelStyle}>Related Entity ID</label>
                   <input style={inputStyle} value={form.related_entity_id}
                     onChange={e => set('related_entity_id', e.target.value)}
-                    placeholder="UUID of child, parent, or staff" required />
+                    placeholder="Child/parent/staff ID (blank = centre)" />
                 </div>
 
                 <div>
@@ -165,7 +174,12 @@ export default function Documents() {
                 </div>
 
                 <div style={{ gridColumn: '1/-1' }}>
-                  <label style={labelStyle}>File URL</label>
+                  <label style={labelStyle}>Upload file (PDF, image, Word — max 15MB)</label>
+                  <input style={inputStyle} type="file" accept=".pdf,image/*,.doc,.docx,.txt"
+                    onChange={e => setFile(e.target.files && e.target.files[0] ? e.target.files[0] : null)} />
+                </div>
+                <div style={{ gridColumn: '1/-1' }}>
+                  <label style={labelStyle}>…or paste a file URL</label>
                   <input style={inputStyle} value={form.file_url}
                     onChange={e => set('file_url', e.target.value)}
                     placeholder="https://..." />
@@ -257,13 +271,21 @@ export default function Documents() {
                     {d.expiry_date ? new Date(d.expiry_date).toLocaleDateString() : '—'}
                   </td>
                   <td style={{ padding: '12px 8px' }}>
-                    <button onClick={() => handleDelete(d.document_id)}
-                      style={{
-                        padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                        background: '#FEE2E2', color: '#DC2626', fontSize: '0.8rem', fontWeight: 600,
-                      }}>
-                      🗑 Delete
-                    </button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {d.file_url ? (
+                        <a href={api.documentFileUrl(d.document_id)} target="_blank" rel="noopener noreferrer"
+                          style={{ padding: '4px 10px', borderRadius: 6, background: '#EFF6FF', color: '#1A3D7C', fontSize: '0.8rem', fontWeight: 600, textDecoration: 'none' }}>
+                          👁 View
+                        </a>
+                      ) : null}
+                      <button onClick={() => handleDelete(d.document_id)}
+                        style={{
+                          padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                          background: '#FEE2E2', color: '#DC2626', fontSize: '0.8rem', fontWeight: 600,
+                        }}>
+                        🗑 Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

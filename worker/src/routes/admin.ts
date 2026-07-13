@@ -29,6 +29,19 @@ r.get('/compliance', async (c) => {
   const rows = await c.env.DB.prepare('SELECT * FROM compliance_items ORDER BY category ASC').all();
   return c.json({ ok: true, data: rows.results });
 });
+// Ubuntu Compliance Score — overall + per-category readiness for inspections/funders.
+r.get('/compliance/score', async (c) => {
+  const rows = await c.env.DB.prepare('SELECT category, status FROM compliance_items').all<any>();
+  const items = rows.results;
+  const total = items.length;
+  const complete = items.filter((i) => i.status === 'complete').length;
+  const attention = items.filter((i) => i.status === 'needs_attention' || i.status === 'expired').length;
+  const score = total ? Math.round((complete / total) * 100) : 0;
+  const byCat: Record<string, { complete: number; total: number }> = {};
+  for (const i of items) { (byCat[i.category] ||= { complete: 0, total: 0 }).total++; if (i.status === 'complete') byCat[i.category].complete++; }
+  const categories = Object.entries(byCat).map(([category, v]) => ({ category, complete: v.complete, total: v.total, score: Math.round((v.complete / v.total) * 100) }));
+  return c.json({ ok: true, data: { score, complete, attention, total, categories } });
+});
 r.put('/compliance/:id', async (c) => {
   const { status, notes } = (await c.req.json().catch(() => ({}))) as { status: string; notes?: string };
   await c.env.DB.prepare("UPDATE compliance_items SET status = ?, notes = ?, updated_at = datetime('now') WHERE compliance_id = ?").bind(status, notes || null, c.req.param('id')).run();
@@ -60,9 +73,45 @@ r.post('/documents', async (c) => {
 r.delete('/documents/:id', async (c) => {
   const id = c.req.param('id');
   const db = initDb(c.env.DB);
+  const row = await c.env.DB.prepare('SELECT file_url FROM documents WHERE document_id = ?').bind(id).first<any>();
+  if (row && row.file_url && String(row.file_url).startsWith('documents/')) { try { await c.env.MEDIA.delete(row.file_url); } catch { /* ignore */ } }
   await c.env.DB.prepare('DELETE FROM documents WHERE document_id = ?').bind(id).run();
   await db.insertAudit({ id: db.uuid(), user_id: uid(c), action: 'deleted', module_name: 'documents', record_id: id, metadata: '{}' });
   return c.json({ ok: true });
+});
+
+// Document vault — real file upload to R2 (documents/ prefix in the MEDIA bucket).
+r.post('/documents/upload', async (c) => {
+  const form = await c.req.formData().catch(() => null);
+  if (!form) return c.json({ ok: false, error: 'multipart/form-data required' }, 400);
+  const file = form.get('file') as unknown as File | null;
+  if (!file || typeof file.stream !== 'function') return c.json({ ok: false, error: 'A file is required' }, 400);
+  const type = file.type || 'application/octet-stream';
+  const okType = type.startsWith('image/') || type === 'application/pdf' || type.includes('word') || type.includes('officedocument') || type === 'text/plain';
+  if (!okType) return c.json({ ok: false, error: 'Allowed: PDF, image, Word or text' }, 400);
+  if (file.size > 15 * 1024 * 1024) return c.json({ ok: false, error: 'File too large (max 15MB)' }, 400);
+  const db = initDb(c.env.DB);
+  const id = db.uuid();
+  const ext = type === 'application/pdf' ? 'pdf' : type === 'text/plain' ? 'txt' : type.startsWith('image/') ? (type.split('/')[1] || 'img').replace(/[^a-z0-9]/gi, '') : 'bin';
+  const key = `documents/${id}.${ext}`;
+  await c.env.MEDIA.put(key, file.stream(), { httpMetadata: { contentType: type } });
+  const expiry = String(form.get('expiry_date') || '') || null;
+  const status = expiry && new Date(expiry) < new Date() ? 'expired' : 'active';
+  await c.env.DB.prepare(
+    `INSERT INTO documents (document_id, related_entity_type, related_entity_id, document_type, title, expiry_date, file_url, status, uploaded_by, uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+  ).bind(id, String(form.get('related_entity_type') || 'centre'), String(form.get('related_entity_id') || ''), String(form.get('document_type') || 'Other'), String(form.get('title') || file.name || 'Document'), expiry, key, status, uid(c)).run();
+  await db.insertAudit({ id: db.uuid(), user_id: uid(c), action: 'uploaded', module_name: 'documents', record_id: id, metadata: JSON.stringify({ type }) });
+  return c.json({ ok: true, data: { document_id: id } });
+});
+
+// Stream a stored document (staff-auth via global middleware). R2 key → stream; legacy URL → redirect.
+r.get('/documents/:id/file', async (c) => {
+  const row = await c.env.DB.prepare('SELECT file_url FROM documents WHERE document_id = ?').bind(c.req.param('id')).first<any>();
+  if (!row || !row.file_url) return c.json({ ok: false, error: 'Not found' }, 404);
+  if (!String(row.file_url).startsWith('documents/')) return c.redirect(row.file_url, 302);
+  const obj = await c.env.MEDIA.get(row.file_url);
+  if (!obj) return c.json({ ok: false, error: 'Not found' }, 404);
+  return new Response(obj.body, { headers: { 'Content-Type': obj.httpMetadata?.contentType || 'application/octet-stream', 'Cache-Control': 'private, max-age=300' } });
 });
 
 // ── WAITLIST ────────────────────────────────────────────────────
