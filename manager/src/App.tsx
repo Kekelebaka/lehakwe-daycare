@@ -59,7 +59,7 @@ const ADMIN_NAV = [
   { path: '/notices', label: 'Notice Board', icon: '📢' },
   { path: '/messages', label: 'Messages', icon: '💬' },
   { path: '/notifications', label: 'Notifications', icon: '🔔' },
-  { path: '/ai', label: 'AI Assistant', icon: '🤖' },
+  { path: '/ai', label: 'Ask Ubuntu', icon: '🤖' },
   { path: '/leave', label: 'Leave Tracker', icon: '🏖️' },
   { path: '/waitlist', label: 'Waitlist', icon: '📋' },
   { path: '/payslips', label: 'Payslips', icon: '💸' },

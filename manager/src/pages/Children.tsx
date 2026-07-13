@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
+import { formatAge } from '../lib/age';
 
 const AGE_GROUPS = ['Baby (6-18 mo)', 'Toddler (18 mo-3 yr)', 'Grade R (3-4 yr)'];
 const STATUSES = ['active', 'inactive', 'graduated'];
@@ -419,7 +420,7 @@ export default function Children() {
             <thead>
               <tr style={{ borderBottom: '2px solid #E5E7EB', textAlign: 'left' }}>
                 <th style={{ padding: '12px 8px' }}>Name</th>
-                <th style={{ padding: '12px 8px' }}>Age Group</th>
+                <th style={{ padding: '12px 8px' }}>Age</th>
                 <th style={{ padding: '12px 8px' }}>Parent</th>
                 <th style={{ padding: '12px 8px' }}>Enrolment</th>
                 <th style={{ padding: '12px 8px' }}>Status</th>
@@ -432,7 +433,7 @@ export default function Children() {
                   onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                   <td style={{ padding: '12px 8px', fontWeight: 500 }}>{c.full_name}</td>
-                  <td style={{ padding: '12px 8px' }}>{c.age_group}</td>
+                  <td style={{ padding: '12px 8px' }}>{formatAge(c.date_of_birth) || '—'}{c.age_group ? <span style={{ color: '#9CA3AF', fontSize: '0.8rem' }}> · {c.age_group}</span> : null}</td>
                   <td style={{ padding: '12px 8px', color: '#6B7280' }}>{getParentName(c.parent_id)}</td>
                   <td style={{ padding: '12px 8px', color: '#6B7280' }}>{c.enrolment_date || '—'}</td>
                   <td style={{ padding: '12px 8px' }}>{statusBadge(c.status || 'active')}</td>

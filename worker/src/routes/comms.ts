@@ -147,7 +147,7 @@ r.post('/ai/generate', async (c) => {
     return c.json({ ok: false, error: 'Provide template_id or custom_prompt' }, 400);
   }
   const lang = language || 'en';
-  const langMap: Record<string, string> = { en: 'English', st: 'Sesotho', af: 'Afrikaans', zu: 'Zulu' };
+  const langMap: Record<string, string> = { en: 'English', st: 'Sesotho', tn: 'Setswana', af: 'Afrikaans', zu: 'isiZulu' };
   if (lang !== 'en') prompt = `Please write this in ${langMap[lang] || lang}. Keep the same meaning and tone.\n\n${prompt}`;
   const aiResponse = await c.env.AI.run('@cf/meta/llama-3.2-3b-instruct', {
     messages: [

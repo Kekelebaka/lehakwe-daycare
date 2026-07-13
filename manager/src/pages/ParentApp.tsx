@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
 import { parentApi } from '../lib/api';
 import { Brand } from '../components/ui';
+import { formatAge } from '../lib/age';
 
 export default function ParentApp() {
   const [me, setMe] = useState<any>(null);
@@ -84,7 +85,7 @@ export default function ParentApp() {
       ) : (
         <div style={{ padding: 16 }}>
           <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#14213A' }}>{child.full_name}</div>
-          <div style={{ fontSize: '0.85rem', color: '#6B7280', marginBottom: 16 }}>{child.age_group}</div>
+          <div style={{ fontSize: '0.85rem', color: '#6B7280', marginBottom: 16 }}>{formatAge(child.date_of_birth) ? `${formatAge(child.date_of_birth)} · ` : ''}{child.age_group}</div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
             <div style={cardS}><div style={capS}>Outstanding</div><div style={{ fontSize: '1.4rem', fontWeight: 800, color: balance.outstanding > 0 ? '#DC2626' : '#0F9D8A' }}>R{Number(balance.outstanding).toLocaleString()}</div></div>

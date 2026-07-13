@@ -109,7 +109,7 @@ r.get('/parent/child/:id', async (c) => {
   const p = await currentParent(c);
   if (!p) return c.json({ ok: false, error: 'Not signed in' }, 401);
   const childId = c.req.param('id');
-  const child = await c.env.DB.prepare('SELECT child_id, full_name, age_group, status FROM children WHERE child_id = ? AND parent_id = ?').bind(childId, p.sub).first();
+  const child = await c.env.DB.prepare('SELECT child_id, full_name, date_of_birth, age_group, status FROM children WHERE child_id = ? AND parent_id = ?').bind(childId, p.sub).first();
   if (!child) return c.json({ ok: false, error: 'Not found' }, 404);
 
   const now = new Date();
