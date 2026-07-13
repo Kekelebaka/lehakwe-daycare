@@ -185,4 +185,51 @@ describe('Phase 4 — Lehakwe regresses cleanly as centre #1', () => {
   });
 });
 
+describe('Phase 4 PR C — self-serve signup provisions an isolated, seeded centre', () => {
+  async function signup(body: any) {
+    const res = await worker.fetch(new Request('https://api.test/api/public/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }), env, ctx);
+    return { status: res.status, json: await res.json() };
+  }
+
+  it('creates a centre + owner, seeds defaults, auto-logs-in, and is fully isolated', async () => {
+    const res = await signup({ centre_name: 'Sunny Kids', owner_name: 'Owner One', owner_email: 'owner@sunny.test', password: 'password123', province: 'Gauteng' });
+    expect(res.status).toBe(200);
+    expect(res.json.data.slug).toBe('sunny-kids');
+    expect(String(res.json.data.centre_id)).toMatch(/^centre-/);
+    expect(res.json.data.subdomain).toBe('sunny-kids.daycareos.ubuntutown.co.za');
+    const tok = res.json.data.token;
+
+    // Seeded defaults present for the new centre.
+    expect((await call('/api/compliance', tok)).json.data.length).toBe(11);
+    expect((await call('/api/fees/schedules', tok)).json.data.length).toBe(3);
+    // Empty of operational data AND isolated from centres A/B.
+    expect((await call('/api/children', tok)).json.data).toEqual([]);
+    expect((await call('/api/parents', tok)).json.data).toEqual([]);
+    // Registry reflects a trialing tenant.
+    const centre = await call('/api/centre', tok);
+    expect(centre.json.data.status).toBe('trialing');
+    expect(centre.json.data.slug).toBe('sunny-kids');
+  });
+
+  it('gives a second centre with the same name a distinct slug', async () => {
+    const res = await signup({ centre_name: 'Sunny Kids', owner_name: 'Owner Two', owner_email: 'owner2@sunny.test', password: 'password123' });
+    expect(res.status).toBe(200);
+    expect(res.json.data.slug).toBe('sunny-kids-2');
+  });
+
+  it('setup-complete flips the centre to active', async () => {
+    const res = await signup({ centre_name: 'Bright Start', owner_name: 'Owner Three', owner_email: 'owner3@bright.test', password: 'password123' });
+    const tok = res.json.data.token;
+    expect((await call('/api/centre', tok)).json.data.status).toBe('trialing');
+    const done = await call('/api/centre/setup-complete', tok, { method: 'POST' });
+    expect(done.status).toBe(200);
+    expect((await call('/api/centre', tok)).json.data.status).toBe('active');
+  });
+
+  it('rejects an invalid signup (short password)', async () => {
+    const res = await signup({ centre_name: 'X Centre', owner_name: 'Y', owner_email: 'y@x.test', password: 'short' });
+    expect(res.status).toBe(400);
+  });
+});
+
 }); // suite

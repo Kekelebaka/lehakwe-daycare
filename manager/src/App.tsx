@@ -27,6 +27,8 @@ import Funding from './pages/Funding';
 import LeaveTracker from './pages/LeaveTracker';
 import WaitlistPage from './pages/WaitlistPage';
 import ParentDashboard from './pages/ParentDashboard';
+import Signup from './pages/Signup';
+import SetupWizard from './pages/SetupWizard';
 import RoleSelector from './components/RoleSelector';
 import { Brand } from './components/ui';
 
@@ -428,6 +430,16 @@ function StaffApp() {
     localStorage.removeItem('lehakwe-role');
   };
 
+  // First-run gate: a freshly-signed-up (trialing) centre is sent to the setup wizard.
+  // Active centres (e.g. Lehakwe) are never redirected.
+  useEffect(() => {
+    if (!authenticated || !role) return;
+    if (window.location.pathname === '/setup') return;
+    api.getCentre()
+      .then((cn: any) => { if (cn && cn.status === 'trialing') window.location.assign('/setup'); })
+      .catch(() => { /* endpoint unavailable or offline — no redirect */ });
+  }, [authenticated, role]);
+
   if (!authenticated) {
     return <LoginPage onLogin={handleLogin} />;
   }
@@ -440,6 +452,7 @@ function StaffApp() {
     <RoleContext.Provider value={{ role, setRole: handleSetRole, clearRole: handleClearRole }}>
       <BrowserRouter>
         <Routes>
+          <Route path="/setup" element={<SetupWizard />} />
           <Route path="/parent/:childId" element={<ParentPortal />} />
           <Route path="/*" element={
             <AppLayout role={role} onClearRole={handleLogout}>
@@ -478,6 +491,7 @@ function StaffApp() {
 // ── Root: parents get their own app; everything else is the staff app ──
 export default function App() {
   const path = window.location.pathname;
+  if (path === '/signup') return <Signup />;
   if (path.startsWith('/parent/') || path === '/parent-login' || path.startsWith('/my')) {
     return (
       <BrowserRouter>

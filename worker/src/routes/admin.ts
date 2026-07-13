@@ -220,4 +220,30 @@ r.get('/town/stats', async (c) => {
   return c.json({ ok: true, data: { total_children: children?.count || 0, total_staff: staff?.count || 0, total_centres: centres?.count || 0, town: 'Bloemfontein', coordinator: 'Keke Lebaka' } });
 });
 
+// ── CENTRE (tenant registry: profile, branding, setup state) ────
+r.get('/centre', async (c) => {
+  const row = await c.env.DB.prepare(
+    'SELECT centre_id, slug, name, status, plan, mode, logo_url, primary_color, province, official_email FROM centres WHERE centre_id = ?',
+  ).bind(getCentreId(c)).first();
+  return c.json({ ok: true, data: row || null });
+});
+r.put('/centre', async (c) => {
+  const b = (await c.req.json().catch(() => ({}))) as any;
+  const f: string[] = [];
+  const v: any[] = [];
+  if (b.name !== undefined) { f.push('name = ?'); v.push(b.name); }
+  if (b.logo_url !== undefined) { f.push('logo_url = ?'); v.push(b.logo_url); }
+  if (b.primary_color !== undefined) { f.push('primary_color = ?'); v.push(b.primary_color); }
+  if (!f.length) return c.json({ ok: false, error: 'No fields' }, 400);
+  v.push(getCentreId(c));
+  await c.env.DB.prepare(`UPDATE centres SET ${f.join(', ')} WHERE centre_id = ?`).bind(...v).run();
+  return c.json({ ok: true });
+});
+r.post('/centre/setup-complete', async (c) => {
+  const centre = getCentreId(c);
+  await c.env.DB.prepare("UPDATE centres SET status = 'active' WHERE centre_id = ?").bind(centre).run();
+  await c.env.DB.prepare("INSERT INTO settings (centre_id, setting_key, setting_value) VALUES (?, 'setup_complete', 'true') ON CONFLICT(centre_id, setting_key) DO UPDATE SET setting_value = 'true'").bind(centre).run();
+  return c.json({ ok: true, data: { status: 'active' } });
+});
+
 export default r;

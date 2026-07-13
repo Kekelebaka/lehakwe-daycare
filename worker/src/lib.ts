@@ -75,10 +75,13 @@ export function requiresAdmin(method: string, path: string): boolean {
     [/^\/api\/documents\/[^/]+$/, ['DELETE']],
     [/^\/api\/compliance\//, ['PUT']],
     [/^\/api\/fees\/schedules$/, ['POST']],
+    [/^\/api\/fees\/schedules\/[^/]+$/, ['PUT']],
     [/^\/api\/leave\/[^/]+$/, ['PUT', 'DELETE']],
     [/^\/api\/notifications$/, ['GET']],
     [/^\/api\/notifications\/fee-reminders$/, ['POST']],
     [/^\/api\/notifications\/dispatch$/, ['POST']],
+    [/^\/api\/centre$/, ['PUT']],
+    [/^\/api\/centre\/setup-complete$/, ['POST']],
   ];
   for (const [re, methods] of rules) if (re.test(path) && methods.includes(m)) return true;
   return false;

@@ -66,6 +66,21 @@ r.post('/fees/schedules', async (c) => {
   return c.json({ ok: true, data: { id } });
 });
 
+r.put('/fees/schedules/:id', async (c) => {
+  const b = (await c.req.json().catch(() => ({}))) as any;
+  const centre = getCentreId(c);
+  const f: string[] = [];
+  const v: any[] = [];
+  if (b.age_group !== undefined) { f.push('age_group = ?'); v.push(b.age_group); }
+  if (b.monthly_fee !== undefined) { f.push('monthly_fee = ?'); v.push(b.monthly_fee); }
+  if (b.description !== undefined) { f.push('description = ?'); v.push(b.description); }
+  if (b.active !== undefined) { f.push('active = ?'); v.push(b.active ? 1 : 0); }
+  if (!f.length) return c.json({ ok: false, error: 'No fields' }, 400);
+  v.push(c.req.param('id'), centre);
+  await c.env.DB.prepare(`UPDATE fee_schedules SET ${f.join(', ')} WHERE schedule_id = ? AND centre_id = ?`).bind(...v).run();
+  return c.json({ ok: true });
+});
+
 r.get('/fees/records', async (c) => {
   const centre = getCentreId(c);
   const month = c.req.query('month');
