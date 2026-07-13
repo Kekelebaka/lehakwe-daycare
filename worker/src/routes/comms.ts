@@ -2,13 +2,22 @@ import { Hono } from 'hono';
 import type { AppEnv } from '../env';
 import { initDb } from '../db';
 import { sendEmailViaResend } from '../lib';
+import { getCentreId } from '../tenant';
 
 const r = new Hono<AppEnv>();
 const uid = (c: any) => c.get('identity')?.sub || 'system';
 
+// Centre display facts (name/NPO) for outbound email + AI prompts, per tenant.
+async function centreFacts(c: any, centre: string): Promise<{ name: string; npo: string }> {
+  const rows = await c.env.DB.prepare('SELECT setting_key, setting_value FROM settings WHERE centre_id = ?').bind(centre).all();
+  const s: Record<string, string> = {};
+  for (const row of rows.results as any[]) s[row.setting_key] = row.setting_value;
+  return { name: s.daycare_name || 'our daycare', npo: s.npo_number || '' };
+}
+
 // ── NOTICES ─────────────────────────────────────────────────────
 r.get('/notices', async (c) => {
-  const rows = await c.env.DB.prepare('SELECT * FROM notices ORDER BY pinned DESC, created_at DESC').all();
+  const rows = await c.env.DB.prepare('SELECT * FROM notices WHERE centre_id = ? ORDER BY pinned DESC, created_at DESC').bind(getCentreId(c)).all();
   return c.json({ ok: true, data: rows.results });
 });
 r.post('/notices', async (c) => {
@@ -16,8 +25,8 @@ r.post('/notices', async (c) => {
   if (!b.title || !b.content) return c.json({ ok: false, error: 'title and content are required.' }, 400);
   const id = crypto.randomUUID();
   await c.env.DB.prepare(
-    `INSERT INTO notices (notice_id, title, content, category, pinned, published, expires_at, author_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).bind(id, b.title, b.content, b.category || 'general', b.pinned ? 1 : 0, b.published ? 1 : 0, b.expires_at || null, b.author_id || null).run();
+    `INSERT INTO notices (notice_id, title, content, category, pinned, published, expires_at, author_id, centre_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(id, b.title, b.content, b.category || 'general', b.pinned ? 1 : 0, b.published ? 1 : 0, b.expires_at || null, b.author_id || null, getCentreId(c)).run();
   return c.json({ ok: true, data: { id } });
 });
 r.put('/notices/:id', async (c) => {
@@ -32,28 +41,28 @@ r.put('/notices/:id', async (c) => {
   if (b.expires_at !== undefined) { f.push('expires_at = ?'); v.push(b.expires_at); }
   f.push("updated_at = datetime('now')");
   if (f.length === 1) return c.json({ ok: false, error: 'No fields' }, 400);
-  v.push(c.req.param('id'));
-  await c.env.DB.prepare(`UPDATE notices SET ${f.join(', ')} WHERE notice_id = ?`).bind(...v).run();
+  v.push(c.req.param('id'), getCentreId(c));
+  await c.env.DB.prepare(`UPDATE notices SET ${f.join(', ')} WHERE notice_id = ? AND centre_id = ?`).bind(...v).run();
   return c.json({ ok: true });
 });
 r.delete('/notices/:id', async (c) => {
-  await c.env.DB.prepare('DELETE FROM notices WHERE notice_id = ?').bind(c.req.param('id')).run();
+  await c.env.DB.prepare('DELETE FROM notices WHERE notice_id = ? AND centre_id = ?').bind(c.req.param('id'), getCentreId(c)).run();
   return c.json({ ok: true });
 });
 
-// ── INBOX ───────────────────────────────────────────────────────
+// ── INBOX (all inbox helpers are tenant-scoped via initDb(centre)) ──
 r.get('/threads', async (c) => {
-  const db = initDb(c.env.DB);
+  const db = initDb(c.env.DB, getCentreId(c));
   return c.json({ ok: true, data: await db.getAllThreads() });
 });
 r.get('/threads/:id', async (c) => {
-  const db = initDb(c.env.DB);
+  const db = initDb(c.env.DB, getCentreId(c));
   const tid = c.req.param('id');
   const [messages, notes, auditLogs] = await Promise.all([db.getThread(tid), db.getNotes(tid), db.getAuditLogs(tid)]);
   return c.json({ ok: true, data: { thread_id: tid, messages, notes, audit_logs: auditLogs } });
 });
 r.put('/threads/:id/status', async (c) => {
-  const db = initDb(c.env.DB);
+  const db = initDb(c.env.DB, getCentreId(c));
   const tid = c.req.param('id');
   const { status, staff_id } = (await c.req.json().catch(() => ({}))) as any;
   await db.updateStatus(tid, status);
@@ -61,7 +70,7 @@ r.put('/threads/:id/status', async (c) => {
   return c.json({ ok: true });
 });
 r.put('/threads/:id/assign', async (c) => {
-  const db = initDb(c.env.DB);
+  const db = initDb(c.env.DB, getCentreId(c));
   const tid = c.req.param('id');
   const { staff_id } = (await c.req.json().catch(() => ({}))) as any;
   await db.assignThread(tid, staff_id);
@@ -70,6 +79,7 @@ r.put('/threads/:id/assign', async (c) => {
 });
 
 async function handleReply(c: any, threadIdFromPath?: string) {
+  const centre = getCentreId(c);
   const body_raw = (await c.req.json().catch(() => ({}))) as any;
   const thread_id = body_raw.thread_id || threadIdFromPath || null;
   const staff_id = body_raw.staff_id || 'system';
@@ -77,7 +87,7 @@ async function handleReply(c: any, threadIdFromPath?: string) {
   const template_id = body_raw.template_id;
   if (!thread_id) return c.json({ ok: false, error: 'thread_id required' }, 400);
 
-  const db = initDb(c.env.DB);
+  const db = initDb(c.env.DB, centre);
   const msgs = await db.getThread(thread_id);
   const original = msgs[0];
   if (!original) return c.json({ ok: false, error: 'Thread not found' }, 404);
@@ -96,11 +106,12 @@ async function handleReply(c: any, threadIdFromPath?: string) {
   }
   const emailText = `${finalBody}${staffSig}`;
   const subject = original.subject && original.subject.startsWith('Re:') ? original.subject : `Re: ${original.subject}`;
-  const sent = await sendEmailViaResend(c.env, { to: original.from_email, fromName: 'Lehakwe Daycare', fromEmail: `info@${c.env.SENDING_DOMAIN}`, subject, text: emailText });
+  const { name } = await centreFacts(c, centre);
+  const sent = await sendEmailViaResend(c.env, { to: original.from_email, fromName: name, fromEmail: `info@${c.env.SENDING_DOMAIN}`, subject, text: emailText });
 
   await db.DB.prepare(
-    `INSERT INTO email_replies (reply_id, thread_id, staff_id, body, sent_to, signature_used) VALUES (?, ?, ?, ?, ?, ?)`,
-  ).bind(db.uuid(), thread_id, staff_id === 'system' ? null : staff_id, emailText, original.from_email, staffSig || null).run();
+    `INSERT INTO email_replies (reply_id, thread_id, staff_id, body, sent_to, signature_used, centre_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(db.uuid(), thread_id, staff_id === 'system' ? null : staff_id, emailText, original.from_email, staffSig || null, centre).run();
   await db.insertAudit({ id: db.uuid(), thread_id, staff_id, action: 'replied', metadata: JSON.stringify({ body_length: finalBody.length, sent }) });
 
   return c.json({ ok: true, data: { message_id: db.uuid(), sent, note: sent ? 'Reply sent.' : 'Reply recorded. Set RESEND_API_KEY to enable email delivery.' } });
@@ -110,18 +121,18 @@ r.post('/send', (c) => handleReply(c));
 
 r.post('/notes', async (c) => {
   const { thread_id, staff_id, note } = (await c.req.json().catch(() => ({}))) as any;
-  const db = initDb(c.env.DB);
+  const db = initDb(c.env.DB, getCentreId(c));
   const noteId = db.uuid();
   await db.insertNote({ id: noteId, thread_id, staff_id, note });
   await db.insertAudit({ id: db.uuid(), thread_id, staff_id: staff_id || 'system', action: 'noted', metadata: '{}' });
   return c.json({ ok: true, data: { id: noteId } });
 });
 r.get('/templates', async (c) => {
-  const db = initDb(c.env.DB);
+  const db = initDb(c.env.DB, getCentreId(c));
   return c.json({ ok: true, data: await db.getTemplates() });
 });
 r.get('/audit', async (c) => {
-  const rows = await c.env.DB.prepare('SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 100').all();
+  const rows = await c.env.DB.prepare('SELECT * FROM audit_logs WHERE centre_id = ? ORDER BY timestamp DESC LIMIT 100').bind(getCentreId(c)).all();
   return c.json({ ok: true, data: rows.results });
 });
 
@@ -131,6 +142,7 @@ r.get('/ai/templates', async (c) => {
   return c.json({ ok: true, data: rows.results });
 });
 r.post('/ai/generate', async (c) => {
+  const centre = getCentreId(c);
   const body = (await c.req.json().catch(() => ({}))) as any;
   const { template_id, variables, custom_prompt, language } = body;
   let prompt = '';
@@ -149,9 +161,10 @@ r.post('/ai/generate', async (c) => {
   const lang = language || 'en';
   const langMap: Record<string, string> = { en: 'English', st: 'Sesotho', tn: 'Setswana', af: 'Afrikaans', zu: 'isiZulu' };
   if (lang !== 'en') prompt = `Please write this in ${langMap[lang] || lang}. Keep the same meaning and tone.\n\n${prompt}`;
+  const { name, npo } = await centreFacts(c, centre);
   const aiResponse = await c.env.AI.run('@cf/meta/llama-3.2-3b-instruct', {
     messages: [
-      { role: 'system', content: 'You are a professional South African ECD (Early Childhood Development) assistant for Lehakwe Daycare (NPO 22910695). Write in a warm, professional tone. Use South African English conventions. Always include relevant NPO and contact details when writing letters.' },
+      { role: 'system', content: `You are a professional South African ECD (Early Childhood Development) assistant for ${name}${npo ? ` (NPO ${npo})` : ''}. Write in a warm, professional tone. Use South African English conventions. Always include relevant NPO and contact details when writing letters.` },
       { role: 'user', content: prompt },
     ],
     max_tokens: 1024,
@@ -166,19 +179,21 @@ r.post('/ai/generate', async (c) => {
     else if (template_id.includes('report')) docType = 'report';
     else docType = 'notice';
   }
-  await c.env.DB.prepare('INSERT INTO generated_docs (doc_id, template_id, input_variables, output_text, doc_type, language, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(docId, template_id || null, JSON.stringify(variables || {}), output, docType, lang, uid(c)).run();
+  await c.env.DB.prepare('INSERT INTO generated_docs (doc_id, template_id, input_variables, output_text, doc_type, language, created_by, centre_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(docId, template_id || null, JSON.stringify(variables || {}), output, docType, lang, uid(c), centre).run();
   return c.json({ ok: true, data: { doc_id: docId, output, template_id, language: lang } });
 });
 r.get('/ai/docs', async (c) => {
-  const rows = await c.env.DB.prepare('SELECT * FROM generated_docs ORDER BY created_at DESC LIMIT 50').all();
+  const rows = await c.env.DB.prepare('SELECT * FROM generated_docs WHERE centre_id = ? ORDER BY created_at DESC LIMIT 50').bind(getCentreId(c)).all();
   return c.json({ ok: true, data: rows.results });
 });
 r.get('/ai/suggest-reply', async (c) => {
+  const centre = getCentreId(c);
   const threadId = c.req.query('thread_id');
   if (!threadId) return c.json({ ok: false, error: 'thread_id required' }, 400);
-  const thread = await c.env.DB.prepare('SELECT * FROM inbox_messages WHERE thread_id = ? ORDER BY created_at ASC LIMIT 1').bind(threadId).first<any>();
+  const thread = await c.env.DB.prepare('SELECT * FROM inbox_messages WHERE thread_id = ? AND centre_id = ? ORDER BY created_at ASC LIMIT 1').bind(threadId, centre).first<any>();
   if (!thread) return c.json({ ok: false, error: 'Thread not found' }, 404);
-  const replyPrompt = `A parent sent this email to Lehakwe Daycare:\n\nSubject: ${thread.subject}\nBody: ${thread.body_text}\n\nSuggest 3 brief, professional reply options. Number them 1, 2, 3. Each under 100 words. Tone: warm, helpful, South African. Include relevant details from the daycare (NPO 22910695, hours 06:30-17:30, address 12625 Phase 6 Bloemside 9323).`;
+  const { name, npo } = await centreFacts(c, centre);
+  const replyPrompt = `A parent sent this email to ${name}:\n\nSubject: ${thread.subject}\nBody: ${thread.body_text}\n\nSuggest 3 brief, professional reply options. Number them 1, 2, 3. Each under 100 words. Tone: warm, helpful, South African.${npo ? ` Include the centre's NPO number (${npo}) where relevant.` : ''}`;
   const aiResponse = await c.env.AI.run('@cf/meta/llama-3.2-3b-instruct', {
     messages: [
       { role: 'system', content: 'You are a helpful ECD assistant. Suggest professional, warm email replies for a daycare in South Africa.' },

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { AppEnv } from '../env';
 import { enqueueFeeReminders, dispatchPending } from '../notifications';
+import { getCentreId } from '../tenant';
 
 // Admin-facing notification controls + delivery log. All routes are admin-gated
 // via requiresAdmin() in lib.ts. The message/photo enqueue happens inside the
@@ -15,15 +16,16 @@ r.get('/notifications', async (c) => {
      FROM notifications n
      LEFT JOIN parents p ON n.parent_id = p.parent_id
      LEFT JOIN children ch ON n.child_id = ch.child_id
+     WHERE n.centre_id = ?
      ORDER BY n.created_at DESC LIMIT 100`,
-  ).all();
+  ).bind(getCentreId(c)).all();
   return c.json({ ok: true, data: rows.results });
 });
 
 // POST /api/notifications/fee-reminders — enqueue reminders for outstanding balances,
 // then kick off delivery immediately (best-effort; Cron is the retry safety-net).
 r.post('/notifications/fee-reminders', async (c) => {
-  const enqueued = await enqueueFeeReminders(c.env);
+  const enqueued = await enqueueFeeReminders(c.env, getCentreId(c));
   try { c.executionCtx.waitUntil(dispatchPending(c.env)); } catch { await dispatchPending(c.env); }
   return c.json({ ok: true, data: { enqueued } });
 });

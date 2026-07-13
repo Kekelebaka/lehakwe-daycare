@@ -21,7 +21,8 @@ export interface Env {
 }
 
 // Per-request context values set by middleware.
-export type Variables = { identity: JwtPayload | null };
+// centreId is the tenant for the request, resolved from the session JWT (staff routes).
+export type Variables = { identity: JwtPayload | null; centreId?: string };
 
 // The Hono generic used across the app and route modules.
 export type AppEnv = { Bindings: Env; Variables: Variables };
