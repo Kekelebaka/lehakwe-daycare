@@ -58,6 +58,16 @@ export async function login(email: string, password: string, turnstileToken?: st
   return json.data;
 }
 
+export async function signup(data: { centre_name: string; owner_name: string; owner_email: string; password: string; province?: string; turnstileToken?: string }): Promise<any> {
+  const res = await fetch(`${API_BASE}/public/signup`, {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+  });
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Signup failed');
+  return json.data;
+}
+
 export async function logout(): Promise<void> {
   try {
     await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' });
@@ -161,6 +171,12 @@ export const api = {
   // Settings
   getSettings: () => request<any>('/settings'),
   updateSettings: (settings: any) => request<any>('/settings', { method: 'PUT', body: JSON.stringify(settings) }),
+
+  // Centre (tenant registry: profile, branding, setup state)
+  getCentre: () => request<any>('/centre'),
+  updateCentre: (data: any) => request<any>('/centre', { method: 'PUT', body: JSON.stringify(data) }),
+  completeSetup: () => request<any>('/centre/setup-complete', { method: 'POST' }),
+  updateFeeSchedule: (id: string, data: any) => request<any>(`/fees/schedules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Compliance
   getCompliance: () => request<any[]>('/compliance'),

@@ -2,9 +2,77 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import type { AppEnv } from '../env';
 import { initDb } from '../db';
+import { signJwt, hashPassword, type JwtPayload } from '../auth';
+import { sessionCookie, cookieDomain, isRateLimited, bumpRateLimit, verifyTurnstile } from '../lib';
 import { centreForHost, DEFAULT_CENTRE_ID } from '../tenant';
+import { seedCentreDefaults, slugify } from '../provisioning';
 
 const r = new Hono<AppEnv>();
+
+// ── Self-serve signup: create a centre + its owner (admin), seed defaults, auto-login ──
+const Signup = z.object({
+  centre_name: z.string().trim().min(2).max(120),
+  owner_name: z.string().trim().min(2).max(120),
+  owner_email: z.string().email(),
+  password: z.string().min(8).max(200),
+  province: z.string().trim().max(60).optional(),
+  slug: z.string().trim().max(40).optional(),
+  turnstileToken: z.string().optional(),
+});
+
+// POST /api/public/signup (public) — provision a new pooled tenant in seconds.
+r.post('/public/signup', async (c) => {
+  const parsed = Signup.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ ok: false, error: 'Provide a centre name, your name, a valid email and a password (min 8 characters).' }, 400);
+  const d = parsed.data;
+
+  const ip = c.req.header('CF-Connecting-IP') || 'unknown';
+  const rlKey = `signup:${ip}`;
+  if (await isRateLimited(c.env, rlKey, 5)) return c.json({ ok: false, error: 'Too many signups from this network. Please wait a few minutes.' }, 429);
+  await bumpRateLimit(c.env, rlKey, 3600);
+  if (!(await verifyTurnstile(c.env, d.turnstileToken, ip))) return c.json({ ok: false, error: 'Verification failed. Please try again.' }, 400);
+
+  // Guarantee a unique slug for the subdomain.
+  const base = slugify(d.slug || d.centre_name);
+  let slug = base;
+  for (let n = 2; n <= 60; n++) {
+    const taken = await c.env.DB.prepare('SELECT 1 AS x FROM centres WHERE slug = ?').bind(slug).first();
+    if (!taken) break;
+    slug = `${base}-${n}`;
+    if (n === 60) slug = `${base}-${crypto.randomUUID().slice(0, 6)}`;
+  }
+
+  const centreId = `centre-${crypto.randomUUID()}`;
+  const staffId = `staff-${crypto.randomUUID()}`;
+  const pwHash = await hashPassword(d.password);
+  const host = `${slug}.daycareos.ubuntutown.co.za`;
+
+  await c.env.DB.prepare(
+    `INSERT INTO centres (centre_id, slug, name, status, plan, mode, owner_staff_id, province, official_email)
+     VALUES (?, ?, ?, 'trialing', 'self_service', 'pooled', ?, ?, ?)`,
+  ).bind(centreId, slug, d.centre_name, staffId, d.province || null, d.owner_email).run();
+
+  await c.env.DB.prepare(
+    `INSERT INTO staff (staff_id, full_name, job_title, email, password_hash, active, centre_id, created_at, updated_at)
+     VALUES (?, ?, 'Daycare Principal', ?, ?, 1, ?, datetime('now'), datetime('now'))`,
+  ).bind(staffId, d.owner_name, d.owner_email, pwHash, centreId).run();
+
+  await c.env.DB.prepare('INSERT OR IGNORE INTO centre_domains (host, centre_id) VALUES (?, ?)').bind(host, centreId).run();
+
+  await seedCentreDefaults(c.env.DB, centreId, { name: d.centre_name, province: d.province, email: d.owner_email });
+
+  const db = initDb(c.env.DB, centreId);
+  await db.insertAudit({ id: db.uuid(), user_id: staffId, action: 'signed_up', module_name: 'centre', record_id: centreId, metadata: JSON.stringify({ slug }) });
+
+  // Auto-login the owner so the setup wizard starts immediately.
+  const maxAge = 12 * 60 * 60;
+  const now = Math.floor(Date.now() / 1000);
+  const payload: JwtPayload = { sub: staffId, role: 'admin', email: d.owner_email, name: d.owner_name, centre_id: centreId, iat: now, exp: now + maxAge };
+  const token = await signJwt(payload, c.env.JWT_SECRET);
+  c.header('Set-Cookie', sessionCookie(token, maxAge, cookieDomain(c.env)));
+
+  return c.json({ ok: true, data: { centre_id: centreId, slug, subdomain: host, login_url: `https://${host}`, token, user: { id: staffId, name: d.owner_name, email: d.owner_email, role: 'admin', centre_id: centreId } } });
+});
 
 // GET /api/health
 r.get('/health', (c) => c.json({ ok: true, ts: Date.now() }));
