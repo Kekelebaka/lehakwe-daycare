@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import type { AppEnv } from '../env';
+import type { AppEnv, Env } from '../env';
+import { getCentreId } from '../tenant';
 
 // Ubuntu Funding Navigator — the moat. Discovery (match score), Readiness score,
 // AI application builder (Workers AI), and the pipeline/CRM. Available to all
@@ -8,19 +9,19 @@ import type { AppEnv } from '../env';
 const r = new Hono<AppEnv>();
 const uid = (c: any) => c.get('identity')?.sub || 'system';
 
-// ── Centre profile (drives match + readiness) ───────────────────
-async function getProfile(env: AppEnv['Bindings']) {
-  const settingsRows = await env.DB.prepare('SELECT setting_key, setting_value FROM settings').all<any>();
+// ── Centre profile (drives match + readiness), scoped to one centre ─────────
+async function getProfile(env: Env, centreId: string) {
+  const settingsRows = await env.DB.prepare('SELECT setting_key, setting_value FROM settings WHERE centre_id = ?').bind(centreId).all<any>();
   const s: Record<string, string> = {};
   for (const row of settingsRows.results) s[row.setting_key] = row.setting_value;
 
-  const childRow = await env.DB.prepare("SELECT COUNT(*) AS n, SUM(CASE WHEN income_category='single_parent' THEN 1 ELSE 0 END) AS low FROM children WHERE status='active'").first<any>();
-  const comp = await env.DB.prepare('SELECT category, item_name, status FROM compliance_items').all<any>();
+  const childRow = await env.DB.prepare("SELECT COUNT(*) AS n, SUM(CASE WHEN income_category='single_parent' THEN 1 ELSE 0 END) AS low FROM children WHERE status='active' AND centre_id = ?").bind(centreId).first<any>();
+  const comp = await env.DB.prepare('SELECT category, item_name, status FROM compliance_items WHERE centre_id = ?').bind(centreId).all<any>();
   const now = new Date();
   const mm = String(now.getMonth() + 1).padStart(2, '0');
   const yy = String(now.getFullYear());
-  const att = await env.DB.prepare("SELECT COUNT(*) AS n FROM attendance_records WHERE strftime('%m', date)=? AND strftime('%Y', date)=?").bind(mm, yy).first<any>();
-  const fees = await env.DB.prepare('SELECT COUNT(*) AS n FROM fee_records').first<any>();
+  const att = await env.DB.prepare("SELECT COUNT(*) AS n FROM attendance_records WHERE strftime('%m', date)=? AND strftime('%Y', date)=? AND centre_id = ?").bind(mm, yy, centreId).first<any>();
+  const fees = await env.DB.prepare('SELECT COUNT(*) AS n FROM fee_records WHERE centre_id = ?').bind(centreId).first<any>();
 
   const compRows = comp.results as any[];
   const complete = compRows.filter((x) => x.status === 'complete').length;
@@ -61,9 +62,9 @@ function matchScore(opp: any, p: Awaited<ReturnType<typeof getProfile>>): number
   return Math.max(28, Math.min(97, Math.round(s)));
 }
 
-// ── Discovery: opportunities ranked by match score ──────────────
+// ── Discovery: opportunities ranked by match score (catalog is global) ──────
 r.get('/funding/opportunities', async (c) => {
-  const p = await getProfile(c.env);
+  const p = await getProfile(c.env, getCentreId(c));
   const rows = await c.env.DB.prepare('SELECT * FROM funding_opportunities WHERE active = 1').all<any>();
   const data = rows.results
     .map((o) => ({ ...o, match_score: matchScore(o, p) }))
@@ -73,7 +74,7 @@ r.get('/funding/opportunities', async (c) => {
 
 // ── Readiness: score + funder-critical checklist ────────────────
 r.get('/funding/readiness', async (c) => {
-  const p = await getProfile(c.env);
+  const p = await getProfile(c.env, getCentreId(c));
   const items = [
     { key: 'registration', label: 'ECD centre registration certificate', done: p.registrationComplete },
     { key: 'npo', label: 'NPO / legal registration', done: p.npo || p.npoDocsComplete },
@@ -94,8 +95,9 @@ r.get('/funding/applications', async (c) => {
   const rows = await c.env.DB.prepare(
     `SELECT a.*, o.name AS opportunity_name, o.funder, o.category, o.deadline
      FROM funding_applications a LEFT JOIN funding_opportunities o ON a.opportunity_id = o.opportunity_id
+     WHERE a.centre_id = ?
      ORDER BY a.updated_at DESC`,
-  ).all();
+  ).bind(getCentreId(c)).all();
   return c.json({ ok: true, data: rows.results });
 });
 
@@ -106,8 +108,8 @@ r.post('/funding/applications', async (c) => {
   const id = crypto.randomUUID();
   const d = parsed.data;
   await c.env.DB.prepare(
-    'INSERT INTO funding_applications (application_id, opportunity_id, title, amount_requested, created_by) VALUES (?, ?, ?, ?, ?)',
-  ).bind(id, d.opportunity_id || null, d.title, d.amount_requested ?? null, uid(c)).run();
+    'INSERT INTO funding_applications (application_id, opportunity_id, title, amount_requested, created_by, centre_id) VALUES (?, ?, ?, ?, ?, ?)',
+  ).bind(id, d.opportunity_id || null, d.title, d.amount_requested ?? null, uid(c), getCentreId(c)).run();
   return c.json({ ok: true, data: { application_id: id } });
 });
 
@@ -128,13 +130,13 @@ r.put('/funding/applications/:id', async (c) => {
   if (b.title !== undefined) set('title', b.title);
   if (!fields.length) return c.json({ ok: false, error: 'No fields to update' }, 400);
   set('updated_at', new Date().toISOString());
-  vals.push(c.req.param('id'));
-  await c.env.DB.prepare(`UPDATE funding_applications SET ${fields.join(', ')} WHERE application_id = ?`).bind(...vals).run();
+  vals.push(c.req.param('id'), getCentreId(c));
+  await c.env.DB.prepare(`UPDATE funding_applications SET ${fields.join(', ')} WHERE application_id = ? AND centre_id = ?`).bind(...vals).run();
   return c.json({ ok: true });
 });
 
 r.delete('/funding/applications/:id', async (c) => {
-  await c.env.DB.prepare('DELETE FROM funding_applications WHERE application_id = ?').bind(c.req.param('id')).run();
+  await c.env.DB.prepare('DELETE FROM funding_applications WHERE application_id = ? AND centre_id = ?').bind(c.req.param('id'), getCentreId(c)).run();
   return c.json({ ok: true });
 });
 
@@ -149,16 +151,17 @@ const SECTIONS: Record<string, string> = {
 };
 
 r.post('/funding/applications/:id/generate', async (c) => {
+  const centre = getCentreId(c);
   const b = (await c.req.json().catch(() => ({}))) as any;
   const section = String(b.section || 'motivation');
   if (!SECTIONS[section]) return c.json({ ok: false, error: 'Unknown section' }, 400);
   const app = await c.env.DB.prepare(
     `SELECT a.*, o.name AS opp_name, o.funder, o.category, o.description AS opp_desc, o.max_amount
      FROM funding_applications a LEFT JOIN funding_opportunities o ON a.opportunity_id = o.opportunity_id
-     WHERE a.application_id = ?`,
-  ).bind(c.req.param('id')).first<any>();
+     WHERE a.application_id = ? AND a.centre_id = ?`,
+  ).bind(c.req.param('id'), centre).first<any>();
   if (!app) return c.json({ ok: false, error: 'Application not found' }, 404);
-  const p = await getProfile(c.env);
+  const p = await getProfile(c.env, centre);
 
   const facts = [
     `Centre name: ${p.name}`,
@@ -184,10 +187,10 @@ r.post('/funding/applications/:id/generate', async (c) => {
   const label = section.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
   const block = `## ${label}\n\n${output.trim()}`;
   const content = app.content ? `${app.content}\n\n${block}` : block;
-  await c.env.DB.prepare("UPDATE funding_applications SET content = ?, updated_at = datetime('now') WHERE application_id = ?").bind(content, app.application_id).run();
+  await c.env.DB.prepare("UPDATE funding_applications SET content = ?, updated_at = datetime('now') WHERE application_id = ? AND centre_id = ?").bind(content, app.application_id, centre).run();
   try {
-    await c.env.DB.prepare('INSERT INTO generated_docs (doc_id, template_id, input_variables, output_text, doc_type, language, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .bind(`fund-${Date.now()}`, null, JSON.stringify({ application_id: app.application_id, section }), output, 'funding', b.language || 'en', uid(c)).run();
+    await c.env.DB.prepare('INSERT INTO generated_docs (doc_id, template_id, input_variables, output_text, doc_type, language, created_by, centre_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(`fund-${Date.now()}`, null, JSON.stringify({ application_id: app.application_id, section }), output, 'funding', b.language || 'en', uid(c), centre).run();
   } catch { /* generated_docs logging is best-effort */ }
   return c.json({ ok: true, data: { section, label, output: output.trim(), content } });
 });

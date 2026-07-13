@@ -21,10 +21,11 @@ function base64urlDecode(str: string): Uint8Array {
 
 // ── JWT sign/verify (HS256) ────────────────────────────────────
 export interface JwtPayload {
-  sub: string;       // staff_id
-  role: string;      // 'admin' | 'staff'
+  sub: string;       // staff_id (or parent_id for parent sessions)
+  role: string;      // 'admin' | 'staff' | 'parent'
   email: string;
   name: string;
+  centre_id?: string; // Phase 4: tenant the session belongs to (optional for legacy tokens)
   exp: number;       // expiry (epoch seconds)
   iat: number;       // issued at
 }

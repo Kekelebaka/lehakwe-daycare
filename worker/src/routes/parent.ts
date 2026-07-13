@@ -8,6 +8,7 @@ import {
   sha256hex, timingSafeEqualStr, isRateLimited, bumpRateLimit, sendOtp,
 } from '../lib';
 import { getOrCreateThread, markThreadRead, insertThreadMessage } from '../messaging';
+import { DEFAULT_CENTRE_ID } from '../tenant';
 
 const r = new Hono<AppEnv>();
 
@@ -18,6 +19,8 @@ async function currentParent(c: any): Promise<JwtPayload | null> {
   const p = await verifyJwt(token, c.env.JWT_SECRET);
   return p && p.role === 'parent' ? p : null;
 }
+// The centre a parent session belongs to (falls back to centre #1 for legacy tokens).
+const parentCentre = (p: JwtPayload) => p.centre_id || DEFAULT_CENTRE_ID;
 
 const RequestBody = z.object({ identifier: z.string().min(3) });
 
@@ -35,12 +38,12 @@ r.post('/parent/request-otp', async (c) => {
   const db = initDb(c.env.DB);
   let parent: any = null;
   if (isEmail) {
-    parent = await c.env.DB.prepare('SELECT parent_id, full_name, email FROM parents WHERE lower(email) = lower(?) LIMIT 1').bind(raw).first();
+    parent = await c.env.DB.prepare('SELECT parent_id, full_name, email, centre_id FROM parents WHERE lower(email) = lower(?) LIMIT 1').bind(raw).first();
   } else {
     const last9 = raw.replace(/\D/g, '').slice(-9);
     if (last9.length >= 6) {
       parent = await c.env.DB.prepare(
-        "SELECT parent_id, full_name, email FROM parents WHERE replace(replace(replace(coalesce(phone,''),' ',''),'+',''),'-','') LIKE ? LIMIT 1",
+        "SELECT parent_id, full_name, email, centre_id FROM parents WHERE replace(replace(replace(coalesce(phone,''),' ',''),'+',''),'-','') LIKE ? LIMIT 1",
       ).bind(`%${last9}`).first();
     }
   }
@@ -51,8 +54,8 @@ r.post('/parent/request-otp', async (c) => {
     const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     await c.env.DB.prepare('UPDATE otp_codes SET consumed = 1 WHERE identifier = ? AND consumed = 0').bind(raw.toLowerCase()).run();
     await c.env.DB.prepare(
-      'INSERT INTO otp_codes (otp_id, identifier, channel, code_hash, parent_id, expires_at) VALUES (?, ?, ?, ?, ?, ?)',
-    ).bind(db.uuid(), raw.toLowerCase(), isEmail ? 'email' : 'sms', codeHash, parent.parent_id, expires).run();
+      'INSERT INTO otp_codes (otp_id, identifier, channel, code_hash, parent_id, expires_at, centre_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ).bind(db.uuid(), raw.toLowerCase(), isEmail ? 'email' : 'sms', codeHash, parent.parent_id, expires, parent.centre_id || DEFAULT_CENTRE_ID).run();
     await sendOtp(c.env, { identifier: raw, isEmail, code, parentName: parent.full_name });
   }
   return c.json({ ok: true, data: { sent: true, channel: isEmail ? 'email' : 'sms' } });
@@ -79,12 +82,12 @@ r.post('/parent/verify-otp', async (c) => {
   }
   await c.env.DB.prepare('UPDATE otp_codes SET consumed = 1 WHERE otp_id = ?').bind(row.otp_id).run();
 
-  const parent = await c.env.DB.prepare('SELECT parent_id, full_name, email FROM parents WHERE parent_id = ?').bind(row.parent_id).first<any>();
+  const parent = await c.env.DB.prepare('SELECT parent_id, full_name, email, centre_id FROM parents WHERE parent_id = ?').bind(row.parent_id).first<any>();
   if (!parent) return c.json({ ok: false, error: 'Account not found.' }, 404);
 
   const maxAge = 30 * 24 * 60 * 60; // 30 days (parent convenience)
   const now = Math.floor(Date.now() / 1000);
-  const payload: JwtPayload = { sub: parent.parent_id, role: 'parent', email: parent.email || '', name: parent.full_name || 'Parent', iat: now, exp: now + maxAge };
+  const payload: JwtPayload = { sub: parent.parent_id, role: 'parent', email: parent.email || '', name: parent.full_name || 'Parent', centre_id: parent.centre_id || row.centre_id || DEFAULT_CENTRE_ID, iat: now, exp: now + maxAge };
   const token = await signJwt(payload, c.env.JWT_SECRET);
   c.header('Set-Cookie', parentSessionCookie(token, maxAge, cookieDomain(c.env)));
   return c.json({ ok: true, data: { parent: { id: parent.parent_id, name: parent.full_name } } });
@@ -100,7 +103,8 @@ r.post('/parent/logout', (c) => {
 r.get('/parent/me', async (c) => {
   const p = await currentParent(c);
   if (!p) return c.json({ ok: false, error: 'Not signed in' }, 401);
-  const children = await c.env.DB.prepare('SELECT child_id, full_name, age_group, status FROM children WHERE parent_id = ? ORDER BY full_name').bind(p.sub).all();
+  const centre = parentCentre(p);
+  const children = await c.env.DB.prepare('SELECT child_id, full_name, age_group, status FROM children WHERE parent_id = ? AND centre_id = ? ORDER BY full_name').bind(p.sub, centre).all();
   return c.json({ ok: true, data: { parent: { id: p.sub, name: p.name }, children: children.results } });
 });
 
@@ -108,17 +112,18 @@ r.get('/parent/me', async (c) => {
 r.get('/parent/child/:id', async (c) => {
   const p = await currentParent(c);
   if (!p) return c.json({ ok: false, error: 'Not signed in' }, 401);
+  const centre = parentCentre(p);
   const childId = c.req.param('id');
-  const child = await c.env.DB.prepare('SELECT child_id, full_name, date_of_birth, age_group, status FROM children WHERE child_id = ? AND parent_id = ?').bind(childId, p.sub).first();
+  const child = await c.env.DB.prepare('SELECT child_id, full_name, date_of_birth, age_group, status FROM children WHERE child_id = ? AND parent_id = ? AND centre_id = ?').bind(childId, p.sub, centre).first();
   if (!child) return c.json({ ok: false, error: 'Not found' }, 404);
 
   const now = new Date();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const year = String(now.getFullYear());
-  const attendance = await c.env.DB.prepare("SELECT * FROM attendance_records WHERE child_id = ? AND strftime('%m', date) = ? AND strftime('%Y', date) = ? ORDER BY date DESC").bind(childId, month, year).all();
-  const fees = await c.env.DB.prepare('SELECT * FROM fee_records WHERE child_id = ? ORDER BY year DESC, month DESC LIMIT 12').bind(childId).all();
-  const notices = await c.env.DB.prepare('SELECT * FROM notices WHERE published = 1 ORDER BY pinned DESC, created_at DESC LIMIT 10').all();
-  const media = await c.env.DB.prepare('SELECT media_id, caption, created_at FROM media WHERE child_id = ? ORDER BY created_at DESC LIMIT 24').bind(childId).all();
+  const attendance = await c.env.DB.prepare("SELECT * FROM attendance_records WHERE child_id = ? AND centre_id = ? AND strftime('%m', date) = ? AND strftime('%Y', date) = ? ORDER BY date DESC").bind(childId, centre, month, year).all();
+  const fees = await c.env.DB.prepare('SELECT * FROM fee_records WHERE child_id = ? AND centre_id = ? ORDER BY year DESC, month DESC LIMIT 12').bind(childId, centre).all();
+  const notices = await c.env.DB.prepare('SELECT * FROM notices WHERE published = 1 AND centre_id = ? ORDER BY pinned DESC, created_at DESC LIMIT 10').bind(centre).all();
+  const media = await c.env.DB.prepare('SELECT media_id, caption, created_at FROM media WHERE child_id = ? AND centre_id = ? ORDER BY created_at DESC LIMIT 24').bind(childId, centre).all();
   const totalDue = fees.results.reduce((s: number, f: any) => s + (f.amount_due || 0), 0);
   const totalPaid = fees.results.reduce((s: number, f: any) => s + (f.amount_paid || 0), 0);
   return c.json({
@@ -131,9 +136,10 @@ r.get('/parent/child/:id', async (c) => {
 r.get('/parent/media/:id', async (c) => {
   const p = await currentParent(c);
   if (!p) return c.json({ ok: false, error: 'Not signed in' }, 401);
+  const centre = parentCentre(p);
   const row = await c.env.DB.prepare(
-    'SELECT m.r2_key, m.content_type FROM media m JOIN children c ON m.child_id = c.child_id WHERE m.media_id = ? AND c.parent_id = ?',
-  ).bind(c.req.param('id'), p.sub).first<any>();
+    'SELECT m.r2_key, m.content_type FROM media m JOIN children c ON m.child_id = c.child_id WHERE m.media_id = ? AND m.centre_id = ? AND c.parent_id = ?',
+  ).bind(c.req.param('id'), centre, p.sub).first<any>();
   if (!row) return c.json({ ok: false, error: 'Not found' }, 404);
   const obj = await c.env.MEDIA.get(row.r2_key);
   if (!obj) return c.json({ ok: false, error: 'Not found' }, 404);
@@ -147,16 +153,17 @@ const MsgBody = z.object({ body: z.string().trim().min(1).max(4000) });
 r.get('/parent/messages', async (c) => {
   const p = await currentParent(c);
   if (!p) return c.json({ ok: false, error: 'Not signed in' }, 401);
+  const centre = parentCentre(p);
   const rows = await c.env.DB.prepare(
     `SELECT c.child_id, c.full_name AS child_name,
             t.thread_id, t.last_message_at,
             (SELECT body FROM thread_messages WHERE thread_id = t.thread_id ORDER BY created_at DESC LIMIT 1) AS last_body,
             (SELECT COUNT(*) FROM thread_messages WHERE thread_id = t.thread_id AND sender_type = 'staff' AND read_at IS NULL) AS unread
      FROM children c
-     LEFT JOIN message_threads t ON t.child_id = c.child_id
-     WHERE c.parent_id = ?
+     LEFT JOIN message_threads t ON t.child_id = c.child_id AND t.centre_id = c.centre_id
+     WHERE c.parent_id = ? AND c.centre_id = ?
      ORDER BY (t.last_message_at IS NULL), t.last_message_at DESC, c.full_name ASC`,
-  ).bind(p.sub).all();
+  ).bind(p.sub, centre).all();
   return c.json({ ok: true, data: rows.results });
 });
 
@@ -164,15 +171,16 @@ r.get('/parent/messages', async (c) => {
 r.get('/parent/messages/:childId', async (c) => {
   const p = await currentParent(c);
   if (!p) return c.json({ ok: false, error: 'Not signed in' }, 401);
+  const centre = parentCentre(p);
   const childId = c.req.param('childId');
-  const child = await c.env.DB.prepare('SELECT child_id, full_name FROM children WHERE child_id = ? AND parent_id = ?').bind(childId, p.sub).first<any>();
+  const child = await c.env.DB.prepare('SELECT child_id, full_name FROM children WHERE child_id = ? AND parent_id = ? AND centre_id = ?').bind(childId, p.sub, centre).first<any>();
   if (!child) return c.json({ ok: false, error: 'Not found' }, 404);
-  const t = await getOrCreateThread(c.env.DB, childId);
+  const t = await getOrCreateThread(c.env.DB, childId, centre);
   if (!t) return c.json({ ok: false, error: 'Not found' }, 404);
-  await markThreadRead(c.env.DB, t.thread_id, 'parent');
+  await markThreadRead(c.env.DB, t.thread_id, 'parent', centre);
   const msgs = await c.env.DB.prepare(
-    'SELECT message_id, sender_type, sender_name, body, read_at, created_at FROM thread_messages WHERE thread_id = ? ORDER BY created_at ASC',
-  ).bind(t.thread_id).all();
+    'SELECT message_id, sender_type, sender_name, body, read_at, created_at FROM thread_messages WHERE thread_id = ? AND centre_id = ? ORDER BY created_at ASC',
+  ).bind(t.thread_id, centre).all();
   return c.json({ ok: true, data: { thread_id: t.thread_id, child, messages: msgs.results } });
 });
 
@@ -180,14 +188,15 @@ r.get('/parent/messages/:childId', async (c) => {
 r.post('/parent/messages/:childId', async (c) => {
   const p = await currentParent(c);
   if (!p) return c.json({ ok: false, error: 'Not signed in' }, 401);
+  const centre = parentCentre(p);
   const parsed = MsgBody.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ ok: false, error: 'Message cannot be empty.' }, 400);
   const childId = c.req.param('childId');
-  const child = await c.env.DB.prepare('SELECT child_id FROM children WHERE child_id = ? AND parent_id = ?').bind(childId, p.sub).first<any>();
+  const child = await c.env.DB.prepare('SELECT child_id FROM children WHERE child_id = ? AND parent_id = ? AND centre_id = ?').bind(childId, p.sub, centre).first<any>();
   if (!child) return c.json({ ok: false, error: 'Not found' }, 404);
-  const t = await getOrCreateThread(c.env.DB, childId);
+  const t = await getOrCreateThread(c.env.DB, childId, centre);
   if (!t) return c.json({ ok: false, error: 'Not found' }, 404);
-  const msg = await insertThreadMessage(c.env.DB, t.thread_id, 'parent', p.sub, p.name || 'Parent', parsed.data.body);
+  const msg = await insertThreadMessage(c.env.DB, t.thread_id, 'parent', p.sub, p.name || 'Parent', parsed.data.body, centre);
   return c.json({ ok: true, data: msg });
 });
 

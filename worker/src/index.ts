@@ -7,6 +7,7 @@ import { parseIncomingEmail, buildAutoReply, buildReplyRaw } from './email-handl
 import { verifyJwt } from './auth';
 import type { AppEnv, Env } from './env';
 import { SESSION_COOKIE, getCookie, requiresAdmin, isAdmin } from './lib';
+import { centreForHost, DEFAULT_CENTRE_ID } from './tenant';
 
 import authRoutes from './routes/auth';
 import publicRoutes from './routes/public';
@@ -60,6 +61,21 @@ app.use('/api/*', async (c, next) => {
       return c.json({ ok: false, error: 'Forbidden — admin access required' }, 403);
     }
     c.set('identity', identity);
+
+    // ── Tenant resolution: the centre comes from the verified session (never the
+    // client). Secondary defense-in-depth: if the request Origin maps to a known
+    // centre, it must match the session's centre. ────────────────────────────
+    const centre = identity.centre_id || DEFAULT_CENTRE_ID;
+    const origin = c.req.header('Origin') || '';
+    if (origin) {
+      try {
+        const hostCentre = await centreForHost(c.env, new URL(origin).host);
+        if (hostCentre && hostCentre !== centre) {
+          return c.json({ ok: false, error: 'Forbidden — tenant mismatch' }, 403);
+        }
+      } catch { /* malformed Origin header — ignore */ }
+    }
+    c.set('centreId', centre);
   }
   await next();
 });

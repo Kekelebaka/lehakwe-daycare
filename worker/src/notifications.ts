@@ -8,6 +8,7 @@
 // two dispatch paths from double-sending the same row.
 import type { Env } from './env';
 import { sendEmailViaResend } from './lib';
+import { DEFAULT_CENTRE_ID } from './tenant';
 
 export type NotificationType = 'message' | 'photo' | 'fee_reminder';
 export type Channel = 'email' | 'sms' | 'whatsapp' | 'push' | 'none';
@@ -31,14 +32,14 @@ export function resolveChannel(parent: ParentContact, env: Env): Channel {
 // No-op (false) when there is no parent to notify.
 export async function enqueue(
   env: Env,
-  n: { parentId?: string | null; childId?: string | null; type: NotificationType; title: string; body: string; dedupeKey?: string | null },
+  n: { parentId?: string | null; childId?: string | null; type: NotificationType; title: string; body: string; dedupeKey?: string | null; centreId?: string },
 ): Promise<boolean> {
   if (!n.parentId) return false;
   const id = crypto.randomUUID();
   const res = await env.DB.prepare(
-    `INSERT OR IGNORE INTO notifications (notification_id, parent_id, child_id, type, title, body, dedupe_key)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).bind(id, n.parentId, n.childId ?? null, n.type, n.title, n.body, n.dedupeKey ?? null).run();
+    `INSERT OR IGNORE INTO notifications (notification_id, parent_id, child_id, type, title, body, dedupe_key, centre_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(id, n.parentId, n.childId ?? null, n.type, n.title, n.body, n.dedupeKey ?? null, n.centreId ?? DEFAULT_CENTRE_ID).run();
   return ((res.meta as any)?.changes ?? 0) === 1;
 }
 
@@ -122,17 +123,17 @@ export async function resetStaleSending(env: Env): Promise<void> {
 
 // Enqueue a fee reminder for every active child with an outstanding balance and a
 // linked parent. Idempotent per child per calendar month. Returns count newly enqueued.
-export async function enqueueFeeReminders(env: Env): Promise<number> {
+export async function enqueueFeeReminders(env: Env, centreId: string = DEFAULT_CENTRE_ID): Promise<number> {
   const period = new Date().toISOString().slice(0, 7); // YYYY-MM
   const rows = await env.DB.prepare(
     `SELECT c.child_id, c.full_name, c.parent_id,
             COALESCE(SUM(f.amount_due), 0) - COALESCE(SUM(f.amount_paid), 0) AS outstanding
      FROM children c
-     JOIN fee_records f ON f.child_id = c.child_id
-     WHERE c.status = 'active' AND c.parent_id IS NOT NULL
+     JOIN fee_records f ON f.child_id = c.child_id AND f.centre_id = c.centre_id
+     WHERE c.status = 'active' AND c.parent_id IS NOT NULL AND c.centre_id = ?
      GROUP BY c.child_id
      HAVING outstanding > 0`,
-  ).all<any>();
+  ).bind(centreId).all<any>();
 
   let count = 0;
   for (const r of rows.results) {
@@ -144,6 +145,7 @@ export async function enqueueFeeReminders(env: Env): Promise<number> {
       title: `Fee reminder for ${r.full_name}`,
       body: `Our records show an outstanding balance of R${amount.toLocaleString()} for ${r.full_name}. Please contact the centre if you have any questions or have already paid.`,
       dedupeKey: `fee:${r.child_id}:${period}`,
+      centreId,
     });
     if (inserted) count++;
   }

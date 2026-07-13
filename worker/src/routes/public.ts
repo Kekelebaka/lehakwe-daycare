@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import type { AppEnv } from '../env';
 import { initDb } from '../db';
+import { centreForHost, DEFAULT_CENTRE_ID } from '../tenant';
 
 const r = new Hono<AppEnv>();
 
@@ -12,8 +13,8 @@ r.get('/health', (c) => c.json({ ok: true, ts: Date.now() }));
 r.get('/public/child/:token', async (c) => {
   const portalToken = c.req.param('token');
   const child = await c.env.DB.prepare(
-    `SELECT c.child_id, c.full_name, c.age_group, c.status, p.full_name as parent_name
-     FROM children c LEFT JOIN parents p ON c.parent_id = p.parent_id
+    `SELECT c.child_id, c.full_name, c.age_group, c.status, c.centre_id, p.full_name as parent_name
+     FROM children c LEFT JOIN parents p ON c.parent_id = p.parent_id AND p.centre_id = c.centre_id
      WHERE c.portal_token = ?
        AND (c.portal_token_expires_at IS NULL OR c.portal_token_expires_at > datetime('now'))`,
   ).bind(portalToken).first();
@@ -23,14 +24,15 @@ r.get('/public/child/:token', async (c) => {
   const month = now.getMonth() + 1;
   const year = now.getFullYear();
   const childId = (child as any).child_id;
+  const centre = (child as any).centre_id || DEFAULT_CENTRE_ID;
 
   const attendance = await c.env.DB.prepare(
-    `SELECT * FROM attendance_records WHERE child_id = ? AND strftime('%m', date) = ? AND strftime('%Y', date) = ? ORDER BY date DESC`,
-  ).bind(childId, String(month).padStart(2, '0'), String(year)).all();
-  const fees = await c.env.DB.prepare('SELECT * FROM fee_records WHERE child_id = ? ORDER BY year DESC, month DESC LIMIT 12').bind(childId).all();
-  const notices = await c.env.DB.prepare('SELECT * FROM notices WHERE published = 1 ORDER BY pinned DESC, created_at DESC LIMIT 10').all();
-  const settings = await c.env.DB.prepare('SELECT * FROM settings LIMIT 1').first();
-  const media = await c.env.DB.prepare('SELECT media_id, caption, created_at FROM media WHERE child_id = ? ORDER BY created_at DESC LIMIT 24').bind(childId).all();
+    `SELECT * FROM attendance_records WHERE child_id = ? AND centre_id = ? AND strftime('%m', date) = ? AND strftime('%Y', date) = ? ORDER BY date DESC`,
+  ).bind(childId, centre, String(month).padStart(2, '0'), String(year)).all();
+  const fees = await c.env.DB.prepare('SELECT * FROM fee_records WHERE child_id = ? AND centre_id = ? ORDER BY year DESC, month DESC LIMIT 12').bind(childId, centre).all();
+  const notices = await c.env.DB.prepare('SELECT * FROM notices WHERE published = 1 AND centre_id = ? ORDER BY pinned DESC, created_at DESC LIMIT 10').bind(centre).all();
+  const settings = await c.env.DB.prepare('SELECT * FROM settings WHERE centre_id = ? LIMIT 1').bind(centre).first();
+  const media = await c.env.DB.prepare('SELECT media_id, caption, created_at FROM media WHERE child_id = ? AND centre_id = ? ORDER BY created_at DESC LIMIT 24').bind(childId, centre).all();
 
   const totalDue = fees.results.reduce((s: number, f: any) => s + (f.amount_due || 0), 0);
   const totalPaid = fees.results.reduce((s: number, f: any) => s + (f.amount_paid || 0), 0);
@@ -57,7 +59,7 @@ r.get('/public/qr/:token', (c) =>
 // GET /api/public/media/:token/:id — token-gated image stream for the parent portal
 r.get('/public/media/:token/:id', async (c) => {
   const row = await c.env.DB.prepare(
-    `SELECT m.r2_key, m.content_type FROM media m JOIN children c ON m.child_id = c.child_id
+    `SELECT m.r2_key, m.content_type FROM media m JOIN children c ON m.child_id = c.child_id AND m.centre_id = c.centre_id
      WHERE m.media_id = ? AND c.portal_token = ?
        AND (c.portal_token_expires_at IS NULL OR c.portal_token_expires_at > datetime('now'))`,
   ).bind(c.req.param('id'), c.req.param('token')).first<any>();
@@ -78,7 +80,8 @@ const Enquiry = z.object({
   consent: z.literal(true),
 });
 
-// POST /api/public/enquiry — website "Register your child" intake (consent-gated)
+// POST /api/public/enquiry — website "Register your child" intake (consent-gated).
+// Centre is resolved from the request Origin (subdomain → centre); defaults to centre #1.
 r.post('/public/enquiry', async (c) => {
   const parsed = Enquiry.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
@@ -89,13 +92,16 @@ r.post('/public/enquiry', async (c) => {
     );
   }
   const b = parsed.data;
-  const db = initDb(c.env.DB);
+  let centre = DEFAULT_CENTRE_ID;
+  const origin = c.req.header('Origin') || '';
+  if (origin) { try { centre = (await centreForHost(c.env, new URL(origin).host)) || DEFAULT_CENTRE_ID; } catch { /* ignore */ } }
+  const db = initDb(c.env.DB, centre);
   const id = crypto.randomUUID();
-  const maxPos = await c.env.DB.prepare('SELECT MAX(position) AS max_pos FROM waitlist').first<{ max_pos: number }>();
+  const maxPos = await c.env.DB.prepare('SELECT MAX(position) AS max_pos FROM waitlist WHERE centre_id = ?').bind(centre).first<{ max_pos: number }>();
   const position = (maxPos?.max_pos || 0) + 1;
   await c.env.DB.prepare(
-    `INSERT INTO waitlist (waitlist_id, child_name, parent_name, parent_phone, parent_email, age_group, preferred_start_date, status, notes, position)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'waiting', ?, ?)`,
+    `INSERT INTO waitlist (waitlist_id, child_name, parent_name, parent_phone, parent_email, age_group, preferred_start_date, status, notes, position, centre_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'waiting', ?, ?, ?)`,
   ).bind(
     id,
     b.child_name.slice(0, 120),
@@ -106,6 +112,7 @@ r.post('/public/enquiry', async (c) => {
     b.dob ? b.dob.slice(0, 20) : null,
     `Website enquiry. Consent given at ${new Date().toISOString()}.` + (b.notes ? ` Notes: ${b.notes.slice(0, 500)}` : ''),
     position,
+    centre,
   ).run();
   await db.insertAudit({ id: db.uuid(), user_id: 'public', action: 'created', module_name: 'waitlist', record_id: id, metadata: JSON.stringify({ source: 'website' }) });
   return c.json({ ok: true, data: { received: true } });
