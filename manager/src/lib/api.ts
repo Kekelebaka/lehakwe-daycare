@@ -150,6 +150,13 @@ export const api = {
   getDocuments: () => request<any[]>('/documents'),
   createDocument: (data: any) => request<any>('/documents', { method: 'POST', body: JSON.stringify(data) }),
   deleteDocument: (id: string) => request<any>(`/documents/${id}`, { method: 'DELETE' }),
+  uploadDocument: (file: File, meta: Record<string, string>) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    Object.entries(meta).forEach(([k, v]) => { if (v) fd.append(k, v); });
+    return fetch(`${API_BASE}/documents/upload`, { method: 'POST', credentials: 'include', body: fd }).then(async (r) => { const j = await r.json(); if (!j.ok) throw new Error(j.error || 'Upload failed'); return j.data; });
+  },
+  documentFileUrl: (id: string) => `${API_BASE}/documents/${id}/file`,
 
   // Settings
   getSettings: () => request<any>('/settings'),
@@ -157,6 +164,7 @@ export const api = {
 
   // Compliance
   getCompliance: () => request<any[]>('/compliance'),
+  getComplianceScore: () => request<any>('/compliance/score'),
   updateCompliance: (id: string, status: string, notes: string) =>
     request<any>(`/compliance/${id}`, { method: 'PUT', body: JSON.stringify({ status, notes }) }),
 

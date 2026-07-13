@@ -10,6 +10,7 @@ import Children from './pages/Children';
 import Parents from './pages/Parents';
 import Reports from './pages/Reports';
 import Documents from './pages/Documents';
+import Compliance from './pages/Compliance';
 import Settings from './pages/Settings';
 import Attendance from './pages/Attendance';
 import Fees from './pages/Fees';
@@ -59,13 +60,14 @@ const ADMIN_NAV = [
   { path: '/notices', label: 'Notice Board', icon: '📢' },
   { path: '/messages', label: 'Messages', icon: '💬' },
   { path: '/notifications', label: 'Notifications', icon: '🔔' },
-  { path: '/ai', label: 'AI Assistant', icon: '🤖' },
+  { path: '/ai', label: 'Ask Ubuntu', icon: '🤖' },
   { path: '/leave', label: 'Leave Tracker', icon: '🏖️' },
   { path: '/waitlist', label: 'Waitlist', icon: '📋' },
   { path: '/payslips', label: 'Payslips', icon: '💸' },
   { path: '/staff', label: 'Staff', icon: '👥' },
   { path: '/parents', label: 'Parents', icon: '👨‍👩‍👧' },
   { path: '/reports', label: 'Reports', icon: '📑' },
+  { path: '/compliance', label: 'Compliance', icon: '🛡️' },
   { path: '/documents', label: 'Documents', icon: '📁' },
   { path: '/settings', label: 'Settings', icon: '⚙️' },
 ];
@@ -460,6 +462,7 @@ function StaffApp() {
                 <Route path="/staff" element={<Staff />} />
                 <Route path="/parents" element={<Parents />} />
                 <Route path="/reports" element={<Reports />} />
+                <Route path="/compliance" element={<Compliance />} />
                 <Route path="/documents" element={<Documents />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="*" element={<Navigate to="/" replace />} />

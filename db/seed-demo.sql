@@ -17,6 +17,9 @@ INSERT OR REPLACE INTO settings (setting_key, setting_value) VALUES
   ('npo_number', 'NPO-2026/DEMO'),
   ('website', 'https://daycareos.ubuntutown.co.za'),
   ('official_email', 'demo@daycareos.ubuntutown.co.za'),
+  ('province', 'Gauteng'),
+  ('town', 'Johannesburg'),
+  ('municipality', 'City of Johannesburg'),
   ('uif_enabled', 'true'),
   ('paye_enabled', 'false');
 
@@ -26,6 +29,9 @@ INSERT INTO staff (staff_id, full_name, job_title, email, phone, basic_salary, u
   ('d-staff-lerato','Lerato Dlamini','Caregiver','lerato@daycareos.ubuntutown.co.za','0721000002',6500,1,0,1,NULL,'2023-03-01'),
   ('d-staff-sipho','Sipho Ndlovu','Assistant','sipho@daycareos.ubuntutown.co.za','0721000003',5000,1,0,1,NULL,'2024-02-15'),
   ('d-staff-naledi','Naledi Khumalo','Caregiver','naledi@daycareos.ubuntutown.co.za','0721000004',6500,1,0,1,NULL,'2024-06-01');
+
+-- Demo staff email signature (avoid the schema default that names Lehakwe)
+UPDATE staff SET signature = 'Kind regards,' || char(10) || char(10) || full_name || char(10) || 'Ubuntu Demo Daycare' || char(10) || 'demo@daycareos.ubuntutown.co.za' WHERE staff_id LIKE 'd-%';
 
 -- ── Parents ─────────────────────────────────────────────────────
 INSERT INTO parents (parent_id, full_name, phone, email, relationship_to_child) VALUES
