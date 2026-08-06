@@ -106,7 +106,17 @@ r.get('/coordinator/centres', async (c) => {
   const coord = await requireCoordinator(c);
   if (!coord) return c.json({ ok: false, error: 'Unauthorized' }, 401);
 
-  const rows = await c.env.DB.prepare(
+  // A network administrator oversees the whole network; a coordinator sees only
+  // the centres assigned to them.
+  const isNetworkAdmin = coord.role === 'network_admin';
+  const scope = isNetworkAdmin
+    ? 'FROM centres c LEFT JOIN subscriptions s ON s.centre_id = c.centre_id WHERE 1 = 1'
+    : `FROM coordinator_centres cc
+       JOIN centres c ON c.centre_id = cc.centre_id
+       LEFT JOIN subscriptions s ON s.centre_id = c.centre_id
+      WHERE cc.coordinator_id = ?`;
+
+  const stmt = c.env.DB.prepare(
     `SELECT c.centre_id, c.name, c.slug, c.status, c.plan, c.province, c.official_email, c.created_at,
             s.status AS sub_status, s.paid_until, s.trial_ends_at, s.grace_days,
             (SELECT COUNT(*) FROM children ch WHERE ch.centre_id = c.centre_id AND ch.status = 'active') AS children,
@@ -114,12 +124,10 @@ r.get('/coordinator/centres', async (c) => {
             (SELECT setting_value FROM settings se WHERE se.centre_id = c.centre_id AND se.setting_key = 'setup_complete') AS setup_complete,
             (SELECT COUNT(*) FROM compliance_items ci WHERE ci.centre_id = c.centre_id AND ci.status = 'complete') AS compliance_done,
             (SELECT COUNT(*) FROM compliance_items ci WHERE ci.centre_id = c.centre_id) AS compliance_total
-       FROM coordinator_centres cc
-       JOIN centres c ON c.centre_id = cc.centre_id
-       LEFT JOIN subscriptions s ON s.centre_id = c.centre_id
-      WHERE cc.coordinator_id = ?
+       ${scope}
       ORDER BY c.created_at DESC`,
-  ).bind(coord.id).all();
+  );
+  const rows = await (isNetworkAdmin ? stmt.all() : stmt.bind(coord.id).all());
 
   const centres = (rows.results || []).map((x: any) => {
     const access = evaluateAccess({
@@ -151,7 +159,7 @@ r.get('/coordinator/centres', async (c) => {
     children: centres.reduce((n, x) => n + x.children, 0),
   };
 
-  return c.json({ ok: true, data: { summary, centres } });
+  return c.json({ ok: true, data: { summary, centres, is_network_admin: isNetworkAdmin } });
 });
 
 // ── POST /api/coordinator/centres — onboard a creche (R250) ───────
@@ -222,7 +230,8 @@ r.post('/coordinator/act-as/:centreId', async (c) => {
   if (!coord) return c.json({ ok: false, error: 'Unauthorized' }, 401);
 
   const centreId = c.req.param('centreId');
-  if (!(await coordinatorOwnsCentre(c.env, coord.id, centreId))) {
+  const permitted = coord.role === 'network_admin' || (await coordinatorOwnsCentre(c.env, coord.id, centreId));
+  if (!permitted) {
     return c.json({ ok: false, error: 'That centre is not in your portfolio.' }, 403);
   }
 
@@ -262,6 +271,100 @@ r.post('/coordinator/act-as/:centreId', async (c) => {
       redirect: '/setup',
     },
   });
+});
+
+// ── Network administration ────────────────────────────────────────
+// Only a network_admin may see or change who the coordinators are. This is what
+// removes the need to ever touch the database by hand again.
+async function requireNetworkAdmin(c: Context<AppEnv>) {
+  const coord = await requireCoordinator(c);
+  if (!coord) return { coord: null, error: c.json({ ok: false, error: 'Unauthorized' }, 401) };
+  if (coord.role !== 'network_admin') {
+    return { coord: null, error: c.json({ ok: false, error: 'Only a network administrator can do that.' }, 403) };
+  }
+  return { coord, error: null };
+}
+
+// GET /api/coordinator/admin/coordinators
+r.get('/coordinator/admin/coordinators', async (c) => {
+  const { coord, error } = await requireNetworkAdmin(c);
+  if (!coord) return error!;
+  const rows = await c.env.DB.prepare(
+    `SELECT co.coordinator_id, co.email, co.full_name, co.role, co.active, co.created_at,
+            co.supabase_user_id IS NOT NULL AS linked,
+            (SELECT COUNT(*) FROM coordinator_centres cc WHERE cc.coordinator_id = co.coordinator_id) AS centres
+       FROM coordinators co ORDER BY co.created_at ASC`,
+  ).all();
+  return c.json({ ok: true, data: rows.results });
+});
+
+// POST /api/coordinator/admin/coordinators — invite by email
+const NewCoordinator = z.object({
+  email: z.string().email(),
+  full_name: z.string().trim().min(2).max(120),
+  role: z.enum(['coordinator', 'network_admin']).optional(),
+  town_id: z.string().trim().max(60).optional(),
+});
+
+r.post('/coordinator/admin/coordinators', async (c) => {
+  const { coord, error } = await requireNetworkAdmin(c);
+  if (!coord) return error!;
+
+  const parsed = NewCoordinator.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ ok: false, error: 'Provide a valid email and a name.' }, 400);
+  const d = parsed.data;
+  const email = d.email.toLowerCase();
+
+  const existing = await c.env.DB.prepare('SELECT coordinator_id FROM coordinators WHERE lower(email) = ?')
+    .bind(email).first<any>();
+  if (existing) {
+    // Re-inviting someone who was deactivated should simply restore them.
+    await c.env.DB.prepare('UPDATE coordinators SET active = 1, full_name = ?, role = ? WHERE coordinator_id = ?')
+      .bind(d.full_name, d.role || 'coordinator', existing.coordinator_id).run();
+    return c.json({ ok: true, data: { coordinator_id: existing.coordinator_id, reactivated: true } });
+  }
+
+  const id = `coord-${crypto.randomUUID()}`;
+  await c.env.DB.prepare(
+    `INSERT INTO coordinators (coordinator_id, supabase_user_id, email, full_name, town_id, role, active)
+     VALUES (?, NULL, ?, ?, ?, ?, 1)`,
+  ).bind(id, email, d.full_name, d.town_id || null, d.role || 'coordinator').run();
+
+  // supabase_user_id stays NULL until they sign in — they must already have (or
+  // create) an Ubuntu Town account with this email; we bind it on first use.
+  return c.json({ ok: true, data: { coordinator_id: id, invited: true } });
+});
+
+// POST /api/coordinator/admin/coordinators/:id/active — enable / disable
+r.post('/coordinator/admin/coordinators/:id/active', async (c) => {
+  const { coord, error } = await requireNetworkAdmin(c);
+  if (!coord) return error!;
+  const id = c.req.param('id');
+  if (id === coord.id) return c.json({ ok: false, error: 'You cannot deactivate your own account.' }, 400);
+  const body = await c.req.json<any>().catch(() => ({}));
+  const active = body?.active ? 1 : 0;
+  await c.env.DB.prepare('UPDATE coordinators SET active = ? WHERE coordinator_id = ?').bind(active, id).run();
+  return c.json({ ok: true, data: { coordinator_id: id, active: !!active } });
+});
+
+// POST /api/coordinator/admin/assign — put a centre in a coordinator's portfolio
+r.post('/coordinator/admin/assign', async (c) => {
+  const { coord, error } = await requireNetworkAdmin(c);
+  if (!coord) return error!;
+  const body = await c.req.json<any>().catch(() => ({}));
+  const centreId = String(body?.centre_id || '');
+  const coordinatorId = String(body?.coordinator_id || '');
+  if (!centreId || !coordinatorId) return c.json({ ok: false, error: 'Provide a centre and a coordinator.' }, 400);
+
+  if (body?.remove) {
+    await c.env.DB.prepare('DELETE FROM coordinator_centres WHERE coordinator_id = ? AND centre_id = ?')
+      .bind(coordinatorId, centreId).run();
+    return c.json({ ok: true, data: { removed: true } });
+  }
+  await c.env.DB.prepare(
+    'INSERT OR IGNORE INTO coordinator_centres (coordinator_id, centre_id, relationship) VALUES (?, ?, ?)',
+  ).bind(coordinatorId, centreId, 'manages').run();
+  return c.json({ ok: true, data: { assigned: true } });
 });
 
 export default r;

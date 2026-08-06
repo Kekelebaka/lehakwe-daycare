@@ -133,6 +133,13 @@ export const coordinatorCreateCentre = (data: any) =>
   coordFetch<any>('/coordinator/centres', { method: 'POST', body: JSON.stringify(data) });
 export const coordinatorActAs = (centreId: string) =>
   coordFetch<any>(`/coordinator/act-as/${centreId}`, { method: 'POST' });
+export const coordinatorAdminList = () => coordFetch<any>('/coordinator/admin/coordinators');
+export const coordinatorAdminInvite = (data: { email: string; full_name: string; role?: string }) =>
+  coordFetch<any>('/coordinator/admin/coordinators', { method: 'POST', body: JSON.stringify(data) });
+export const coordinatorAdminSetActive = (id: string, active: boolean) =>
+  coordFetch<any>(`/coordinator/admin/coordinators/${id}/active`, { method: 'POST', body: JSON.stringify({ active }) });
+export const coordinatorAdminAssign = (centre_id: string, coordinator_id: string, remove = false) =>
+  coordFetch<any>('/coordinator/admin/assign', { method: 'POST', body: JSON.stringify({ centre_id, coordinator_id, remove }) });
 export const coordinatorLogout = () =>
   coordFetch<any>('/coordinator/logout', { method: 'POST' }).catch(() => null);
 

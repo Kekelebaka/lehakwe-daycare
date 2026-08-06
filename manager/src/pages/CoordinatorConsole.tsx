@@ -13,6 +13,7 @@ import { Brand, Field, Button } from '../components/ui';
 import {
   coordinatorSession, coordinatorMe, coordinatorCentres,
   coordinatorCreateCentre, coordinatorActAs, coordinatorLogout,
+  coordinatorAdminList, coordinatorAdminInvite, coordinatorAdminSetActive,
   supabaseSignIn, setStoredUser,
 } from '../lib/api';
 
@@ -31,6 +32,9 @@ export default function CoordinatorConsole() {
   const [me, setMe] = useState<any>(null);
   const [centres, setCentres] = useState<Centre[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [team, setTeam] = useState<any[] | null>(null);
+  const [invite, setInvite] = useState({ email: '', full_name: '', role: 'coordinator' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -46,6 +50,11 @@ export default function CoordinatorConsole() {
     const data = await coordinatorCentres();
     setCentres(data.centres || []);
     setSummary(data.summary || null);
+    setIsAdmin(!!data.is_network_admin);
+  }, []);
+
+  const loadTeam = useCallback(async () => {
+    try { setTeam(await coordinatorAdminList()); } catch { setTeam([]); }
   }, []);
 
   useEffect(() => {
@@ -240,6 +249,75 @@ export default function CoordinatorConsole() {
             </div>
           ))}
         </div>
+        {isAdmin && (
+          <section style={{ marginTop: 34 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div>
+                <h2 style={{ fontSize: '1.2rem', margin: 0, color: '#111827' }}>Coordinators</h2>
+                <p style={{ color: '#6B7280', margin: '4px 0 0', fontSize: '.9rem' }}>
+                  Who may onboard and support centres. Invite by the email they use for Ubuntu Town.
+                </p>
+              </div>
+              <Button onClick={() => { if (team === null) loadTeam(); else setTeam(null); }}>
+                {team === null ? 'Manage coordinators' : 'Hide'}
+              </Button>
+            </div>
+
+            {team !== null && (
+              <div style={{ background: 'white', border: '1px solid #E5E7EB', borderRadius: 14, padding: 18, marginTop: 14 }}>
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault(); setError(''); setBusy(true);
+                    try {
+                      await coordinatorAdminInvite(invite);
+                      setInvite({ email: '', full_name: '', role: 'coordinator' });
+                      await loadTeam();
+                    } catch (err: any) { setError(err.message || 'Could not add that coordinator.'); }
+                    finally { setBusy(false); }
+                  }}
+                  style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 10, alignItems: 'end', marginBottom: 18 }}
+                >
+                  <Field label="Name" value={invite.full_name} onChange={(e: any) => setInvite({ ...invite, full_name: e.target.value })} placeholder="Full name" required />
+                  <Field label="Ubuntu Town email" type="email" value={invite.email} onChange={(e: any) => setInvite({ ...invite, email: e.target.value })} placeholder="them@ubuntutown.co.za" required />
+                  <label className="ub-field">
+                    <span className="ub-field-label">Role</span>
+                    <select className="ub-field-input" value={invite.role} onChange={(e) => setInvite({ ...invite, role: e.target.value })}>
+                      <option value="coordinator">Coordinator</option>
+                      <option value="network_admin">Network admin</option>
+                    </select>
+                  </label>
+                  <Button type="submit" disabled={busy}>{busy ? 'Adding…' : 'Add coordinator'}</Button>
+                </form>
+
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {team.map((t: any) => (
+                    <div key={t.coordinator_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '10px 12px', border: '1px solid #F3F4F6', borderRadius: 10, background: t.active ? 'white' : '#FAFAFA' }}>
+                      <div>
+                        <div style={{ fontWeight: 600, color: t.active ? '#111827' : '#9CA3AF' }}>
+                          {t.full_name} {t.role === 'network_admin' && <Pill ok>Network admin</Pill>}
+                          {!t.linked && <Pill ok={false} amber>Not signed in yet</Pill>}
+                        </div>
+                        <div style={{ color: '#6B7280', fontSize: '.82rem' }}>{t.email} · {t.centres} centre(s)</div>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          setBusy(true);
+                          try { await coordinatorAdminSetActive(t.coordinator_id, !t.active); await loadTeam(); }
+                          catch (err: any) { setError(err.message || 'Could not update.'); }
+                          finally { setBusy(false); }
+                        }}
+                        disabled={busy || t.coordinator_id === me?.id}
+                        style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 8, padding: '6px 12px', cursor: t.coordinator_id === me?.id ? 'not-allowed' : 'pointer', fontSize: '.82rem', opacity: t.coordinator_id === me?.id ? .5 : 1 }}
+                      >
+                        {t.active ? 'Deactivate' : 'Reactivate'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
       </main>
     </div>
   );
