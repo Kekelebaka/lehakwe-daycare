@@ -2,9 +2,17 @@ import { useState, useEffect, useRef } from 'react';
 import { login, setStoredUser } from '../lib/api';
 import { Brand, Field, Button } from '../components/ui';
 
+// The public demo must never be a locked door: on the demo host we pre-fill the
+// published credentials and say so, so a visitor can just press Sign in.
+const DEMO_EMAIL = 'demo@daycareos.ubuntutown.co.za';
+const DEMO_PASSWORD = 'demo1234';
+const isDemoHost = () =>
+  typeof window !== 'undefined' && /^demo\./i.test(window.location.hostname);
+
 export default function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const demo = isDemoHost();
+  const [email, setEmail] = useState(demo ? DEMO_EMAIL : '');
+  const [password, setPassword] = useState(demo ? DEMO_PASSWORD : '');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState('');
@@ -57,6 +65,17 @@ export default function LoginPage({ onLogin }: { onLogin: (user: any) => void })
           <p style={{ color: 'var(--brand-purple)', fontSize: '0.8rem', fontWeight: 600, margin: '14px 0 0' }}>Stronger Centres. Brighter Futures. Together.</p>
           <p style={{ color: '#6B7280', fontSize: '0.85rem', margin: '10px 0 0' }}>Sign in to your centre</p>
         </div>
+        {demo && (
+          <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#065F46', borderRadius: 12, padding: 14, fontSize: '.88rem', marginBottom: 16, textAlign: 'left' }}>
+            <strong>Demo centre — just press Sign in.</strong>
+            <div style={{ marginTop: 6 }}>
+              Staff: <code>{DEMO_EMAIL}</code> / <code>{DEMO_PASSWORD}</code>
+            </div>
+            <div style={{ marginTop: 4, opacity: .85 }}>
+              Sample data only. Nothing here affects a real centre.
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit}>
           <Field label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required />

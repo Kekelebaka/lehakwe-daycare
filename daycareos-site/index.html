@@ -208,7 +208,7 @@
     </nav>
     <div class="nav-cta">
       <a class="ghostlink" href="#demo" style="font-weight:600;font-size:.9rem;color:var(--muted)">Book a demo</a>
-      <a class="btn btn-dark" href="#signup">Get started</a>
+      <a data-plan="self_service" class="btn btn-dark" href="#signup">Get started</a>
     </div>
   </div>
 </header>
@@ -221,7 +221,7 @@
       <h1>The Operating System for <span class="grad">African Daycare Centres</span></h1>
       <p class="lede">Manage better. Comply easier. Access funding faster. Ubuntu Daycare OS turns a paper-based crèche into a professional, compliant and fundable organisation — with an AI companion that speaks your language.</p>
       <div class="cta-row">
-        <a class="btn btn-primary" href="#signup">Get your centre online →</a>
+        <a data-plan="self_service" class="btn btn-primary" href="#signup">Get your centre online →</a>
         <a class="btn btn-ghost" href="#demo">See a live demo</a>
       </div>
       <div class="trust">
@@ -390,21 +390,21 @@
       <div class="amt">R250<small> / year</small></div>
       <div class="desc">Sponsored access via Ubuntu Town coordinators & partner programmes.</div>
       <ul><li>Full Manage + Comply + Connect</li><li>Coordinator onboarding & support</li><li>Ask Ubuntu (fair-use)</li></ul>
-      <a class="btn btn-dark" href="#signup" style="justify-content:center">Ask about sponsorship</a>
+      <a data-plan="community" class="btn btn-dark" href="#signup" style="justify-content:center">Ask about sponsorship</a>
     </div>
     <div class="plan feature">
       <h3>Self-Service</h3>
       <div class="amt">R599<small> / year</small></div>
       <div class="desc">Everything a standalone centre needs to run professionally.</div>
       <ul><li>All four pillars, full access</li><li>Parent app, payments & payroll</li><li>Ask Ubuntu AI companion</li><li>Email support</li></ul>
-      <a class="btn btn-primary" href="#signup" style="justify-content:center">Get started</a>
+      <a data-plan="self_service" class="btn btn-primary" href="#signup" style="justify-content:center">Get started</a>
     </div>
     <div class="plan">
       <h3>Ubuntu Funding Pro</h3>
       <div class="amt">R99<small> / month</small></div>
       <div class="desc">Turn compliance into cash — the funding engine, unlimited.</div>
       <ul><li>Unlimited funding searches</li><li>AI application builder</li><li>Readiness score & document prep</li><li>Pipeline tracker</li></ul>
-      <a class="btn btn-dark" href="#signup" style="justify-content:center">Add funding power</a>
+      <a data-plan="funding_pro" class="btn btn-dark" href="#signup" style="justify-content:center">Add funding power</a>
     </div>
   </div>
   <div class="wrap services">
@@ -427,7 +427,7 @@
       <div style="text-align:center">
         <div style="font-family:Sora;font-weight:800;font-size:2.6rem;color:#fff">R10,000+<span style="font-size:1rem;font-weight:600;opacity:.8"> / month</span></div>
         <p style="color:rgba(255,255,255,.85);font-size:.9rem;margin:6px 0 18px">Coordinator dashboards · network analytics · impact reporting</p>
-        <a class="btn" style="background:#fff;color:var(--teal)" href="#signup">Talk to us about your network</a>
+        <a data-plan="network" class="btn" style="background:#fff;color:var(--teal)" href="#signup">Talk to us about your network</a>
       </div>
     </div>
   </div>
@@ -440,9 +440,17 @@
       <span class="eyebrow">See it in action</span>
       <h2 style="font-size:clamp(1.8rem,3.5vw,2.6rem);margin-top:10px">A live centre, running on Ubuntu Daycare OS today</h2>
       <p>Lehakwe Daycare is our first live centre — staff mark attendance, parents log in with a one-time code to see their child's photos and messages, and fee reminders go out automatically. Take a look, or book a walkthrough with our team.</p>
+      <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.28);border-radius:14px;padding:16px 18px;margin:20px 0 6px;text-align:left">
+        <div style="font-weight:700;font-size:.95rem;margin-bottom:8px">🔓 Open demo — no sign-up needed</div>
+        <div style="display:grid;gap:6px;font-size:.92rem">
+          <div><strong>Staff view</strong> — <code style="background:rgba(0,0,0,.25);padding:2px 7px;border-radius:6px">demo@daycareos.ubuntutown.co.za</code> / <code style="background:rgba(0,0,0,.25);padding:2px 7px;border-radius:6px">demo1234</code></div>
+          <div><strong>Parent view</strong> — <code style="background:rgba(0,0,0,.25);padding:2px 7px;border-radius:6px">parent@daycareos.ubuntutown.co.za</code> · code <code style="background:rgba(0,0,0,.25);padding:2px 7px;border-radius:6px">123456</code></div>
+        </div>
+        <div style="font-size:.82rem;opacity:.85;margin-top:10px">Sample data only — nothing you change affects a real centre, and the demo sends no email.</div>
+      </div>
       <div class="demo-row">
         <a class="btn btn-primary" href="https://demo.daycareos.ubuntutown.co.za" target="_blank" rel="noopener noreferrer">Explore the live demo →</a>
-        <a class="btn btn-ghost" style="border-color:rgba(255,255,255,.4)" href="#signup">Book a guided demo</a>
+        <a data-plan="self_service" class="btn btn-ghost" style="border-color:rgba(255,255,255,.4)" href="#signup">Book a guided demo</a>
       </div>
     </div>
   </div>
@@ -454,7 +462,7 @@
     <div>
       <span class="eyebrow">Get started</span>
       <h2 style="font-size:clamp(1.8rem,3.5vw,2.6rem);color:var(--navy);margin-top:10px">Bring your centre online</h2>
-      <p style="color:var(--muted);margin-top:14px">Tell us about your centre and we'll set you up — most centres are live within days. Prefer a hand? Our Assisted Setup and Digital Transformation services do it all for you.</p>
+      <p style="color:var(--muted);margin-top:14px">Choose Self-Service and you'll pay securely and be up and running in minutes — no waiting for us. Sponsored Community places and Network Edition run through our team, so those reach us first.</p>
       <div style="margin-top:22px;display:flex;flex-direction:column;gap:14px">
         <div style="display:flex;gap:12px;align-items:center"><span class="crest" style="width:30px;height:30px;font-size:.9rem;background:var(--teal)">1</span><span style="font-size:.95rem">Choose your plan and pay securely</span></div>
         <div style="display:flex;gap:12px;align-items:center"><span class="crest" style="width:30px;height:30px;font-size:.9rem;background:var(--teal)">2</span><span style="font-size:.95rem">We create your centre instantly</span></div>
@@ -479,6 +487,7 @@
           </div>
         </div>
         <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center;margin-top:18px">Continue →</button>
+        <div class="form-note" id="plan-note" style="font-weight:600;color:var(--navy)"></div>
         <div class="form-note">By submitting you agree to be contacted about Ubuntu Daycare OS. We respect your privacy (POPIA).</div>
       </form>
       <div class="success" id="signup-success">✅ Thank you! Your request is in. Our team (or your Ubuntu Town coordinator) will reach out shortly to get your centre online.</div>
@@ -501,7 +510,7 @@
       </div>
       <div>
         <h5>Company</h5>
-        <a href="#network">For networks</a><a href="#pricing">Pricing</a><a href="#demo">Demo</a><a href="#signup">Get started</a>
+        <a href="#network">For networks</a><a href="#pricing">Pricing</a><a href="#demo">Demo</a><a data-plan="self_service" href="#signup">Get started</a>
       </div>
       <div>
         <h5>The ecosystem</h5>
@@ -522,6 +531,47 @@
   // Self-Service is bought online: we create a signup intent server-side and
   // hand the buyer to Paystack. Everything else (sponsored Community, Network
   // Edition, demos) stays a conversation, so it posts a lead instead.
+  // ── Plan-aware CTAs ────────────────────────────────────────────
+  // Clicking a price must carry that choice into the form, instead of dropping
+  // everyone into a generic enquiry that defaults to something they didn't pick.
+  var PLAN_OPTION = {
+    self_service: 'Self-Service (R599/yr)',
+    community:    'Community (sponsored)',
+    funding_pro:  'Ubuntu Funding Pro',
+    network:      'Network Edition (NGO / municipality)',
+    demo:         'Just a demo for now'
+  };
+
+  function planSelect(){ return document.getElementById('plan'); }
+
+  function refreshCta(){
+    var sel = planSelect();
+    var form = document.getElementById('signup-form');
+    if (!sel || !form) return;
+    var btn = form.querySelector('button[type=submit]');
+    var note = document.getElementById('plan-note');
+    var paying = /self-service/i.test(sel.value || sel.options[sel.selectedIndex].text);
+    if (btn) btn.textContent = paying ? 'Continue to secure payment — R599 →' : 'Request access →';
+    if (note) {
+      note.textContent = paying
+        ? 'Next: secure card or EFT payment via Paystack. Your centre is created the moment it clears, and you go straight into setup.'
+        : 'Next: our team (or your Ubuntu Town coordinator) will be in touch to arrange your place.';
+    }
+  }
+
+  document.addEventListener('click', function(e){
+    var a = e.target.closest ? e.target.closest('[data-plan]') : null;
+    if (!a) return;
+    var want = PLAN_OPTION[a.getAttribute('data-plan')];
+    var sel = planSelect();
+    if (want && sel) {
+      for (var i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].text === want) { sel.selectedIndex = i; break; }
+      }
+      refreshCta();
+    }
+  });
+
   var API = 'https://api.daycareos.ubuntutown.co.za/api';
   var APP = 'https://app.daycareos.ubuntutown.co.za';
 
@@ -583,6 +633,10 @@
       showPanel('⚠️ ' + (err.message || 'Something went wrong.') + ' Please try again, or email info@daycareos.ubuntutown.co.za and we will set you up.', 'error');
     });
   });
+
+  var _sel = document.getElementById('plan');
+  if (_sel) _sel.addEventListener('change', refreshCta);
+  refreshCta();
 
   // ── Return from Paystack (?ref=...) : confirm, then hand over the app link ──
   (function(){
