@@ -22,15 +22,34 @@ import parentRoutes from './routes/parent';
 import messageRoutes from './routes/messages';
 import notificationRoutes from './routes/notifications';
 import fundingRoutes from './routes/funding';
+import billingRoutes from './routes/billing';
+import { evaluateAccess } from './billing';
 import { dispatchPending, resetStaleSending } from './notifications';
 
 const app = new Hono<AppEnv>();
 
 // ── CORS (credentialed, restricted to configured origins) ────────
+// Phase 5: an ALLOWED_ORIGIN entry may be exact ("https://app.example.com") or
+// a single-label wildcard ("https://*.daycareos.ubuntutown.co.za"), so every
+// tenant subdomain is permitted without enumerating them one by one.
+export function originAllowed(origin: string, patterns: string[]): boolean {
+  for (const p of patterns) {
+    if (p === origin) return true;
+    if (p.includes('*')) {
+      const rx = new RegExp(
+        '^' + p.split('*').map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[a-z0-9-]+') + '$',
+        'i',
+      );
+      if (rx.test(origin)) return true;
+    }
+  }
+  return false;
+}
+
 app.use('*', async (c, next) => {
   const allowed = (c.env.ALLOWED_ORIGIN || '').split(',').map((o) => o.trim()).filter(Boolean);
   const handler = cors({
-    origin: (origin) => (origin && allowed.includes(origin) ? origin : allowed[0] || '*'),
+    origin: (origin) => (origin && originAllowed(origin, allowed) ? origin : allowed[0] || '*'),
     credentials: true,
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
@@ -80,6 +99,58 @@ app.use('/api/*', async (c, next) => {
   await next();
 });
 
+// ── Phase 5: subscription gate ────────────────────────────────────
+// Decides whether a centre may still use the product. Deliberately narrow:
+//  - only runs when BILLING_ENFORCED === 'true' (kill switch);
+//  - always lets billing + auth through, so a lapsed centre can still sign in
+//    and pay its way back in;
+//  - fails OPEN on any lookup error and for centres with no subscription row,
+//    because locking a real daycare out of its own children's records is a far
+//    worse failure than a day of unpaid access.
+// Returns 402 with a machine-readable code the app renders as a paywall.
+app.use('/api/*', async (c, next) => {
+  if (c.env.BILLING_ENFORCED !== 'true') return next();
+
+  const path = c.req.path;
+  const exempt =
+    path.startsWith('/api/public/') ||
+    path.startsWith('/api/auth/') ||
+    path.startsWith('/api/parent/') ||
+    path.startsWith('/api/billing/') ||
+    path === '/api/health' ||
+    path === '/api/me';
+  if (exempt) return next();
+
+  const centreId = c.get('centreId');
+  if (!centreId) return next();
+
+  try {
+    const sub = await c.env.DB.prepare(
+      'SELECT status, paid_until, trial_ends_at, grace_days FROM subscriptions WHERE centre_id = ?',
+    ).bind(centreId).first<any>();
+
+    const access = evaluateAccess(sub);
+    if (!access.allowed) {
+      return c.json(
+        {
+          ok: false,
+          error:
+            access.reason === 'suspended'
+              ? 'This centre has been suspended. Please contact support.'
+              : 'Your subscription has lapsed. Please renew to continue.',
+          code: 'subscription_required',
+          data: { reason: access.reason, paid_until: access.paidUntil ?? null },
+        },
+        402,
+      );
+    }
+  } catch (e) {
+    console.error('billing gate lookup failed (failing open):', e);
+  }
+
+  await next();
+});
+
 // ── Routes ───────────────────────────────────────────────────────
 app.route('/api', authRoutes);
 app.route('/api', publicRoutes);
@@ -94,6 +165,7 @@ app.route('/api', parentRoutes);
 app.route('/api', messageRoutes);
 app.route('/api', notificationRoutes);
 app.route('/api', fundingRoutes);
+app.route('/api', billingRoutes);
 
 app.notFound((c) => c.json({ ok: false, error: 'Endpoint not found' }, 404));
 app.onError((err, c) => {

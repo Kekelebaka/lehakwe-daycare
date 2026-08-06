@@ -68,6 +68,29 @@ export async function signup(data: { centre_name: string; owner_name: string; ow
   return json.data;
 }
 
+// ── Phase 5: billing + paid onboarding ────────────────────────
+/** Redeem the one-time "get started" link emailed after payment. */
+export async function redeemSetupToken(token: string): Promise<{ user: any; needs_password: boolean }> {
+  const res = await fetch(`${API_BASE}/public/setup-token`, {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }),
+  });
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'This link is no longer valid.');
+  return json.data;
+}
+
+/** Set a real password (paid signups are provisioned with a random one). */
+export async function setPassword(newPassword: string, currentPassword?: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/auth/set-password`, {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_password: newPassword, current_password: currentPassword }),
+  });
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Could not update password.');
+}
+
 export async function logout(): Promise<void> {
   try {
     await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' });
@@ -279,4 +302,9 @@ export const api = {
   updateFundingApplication: (id: string, data: any) => request<any>(`/funding/applications/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteFundingApplication: (id: string) => request<any>(`/funding/applications/${id}`, { method: 'DELETE' }),
   generateFundingSection: (id: string, section: string, language?: string) => request<any>(`/funding/applications/${id}/generate`, { method: 'POST', body: JSON.stringify({ section, language }) }),
+
+  // Billing (Paystack, annual pay-once)
+  getBillingStatus: () => request<any>('/billing/status'),
+  startBillingCheckout: (planCode?: string) =>
+    request<any>('/billing/checkout', { method: 'POST', body: JSON.stringify({ plan_code: planCode }) }),
 };

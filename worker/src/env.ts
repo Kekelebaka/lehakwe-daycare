@@ -18,6 +18,14 @@ export interface Env {
   COOKIE_DOMAIN?: string;     // per-instance cookie domain (demo/tenants); defaults to Lehakwe
   DEMO_MODE?: string;         // 'true' on the demo instance: fixed parent OTP, no real sends
   AI: any;
+
+  // ── Phase 5: paid self-serve SaaS ──
+  PAYSTACK_SECRET_KEY?: string; // secret: enables checkout + webhook signature verification
+  TENANT_BASE_DOMAIN?: string;  // apex for tenant subdomains, e.g. daycareos.ubuntutown.co.za
+  PUBLIC_SITE_URL?: string;     // marketing site origin (checkout return page)
+  BILLING_ENFORCED?: string;    // 'true' to hard-gate the API on subscription state
+  SUPABASE_URL?: string;        // Ubuntu Town Supabase project (coordinator SSO)
+  SUPABASE_JWT_SECRET?: string; // secret: verifies coordinator Supabase access tokens
 }
 
 // Per-request context values set by middleware.
