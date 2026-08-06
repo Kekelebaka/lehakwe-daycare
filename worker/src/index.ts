@@ -6,7 +6,7 @@ import { initDb } from './db';
 import { parseIncomingEmail, buildAutoReply, buildReplyRaw } from './email-handler';
 import { verifyJwt } from './auth';
 import type { AppEnv, Env } from './env';
-import { SESSION_COOKIE, getCookie, requiresAdmin, isAdmin } from './lib';
+import { SESSION_COOKIE, getCookie, requiresAdmin, isAdmin, tenantBaseDomain } from './lib';
 import { centreForHost, DEFAULT_CENTRE_ID } from './tenant';
 
 import authRoutes from './routes/auth';
@@ -48,6 +48,10 @@ export function originAllowed(origin: string, patterns: string[]): boolean {
 
 app.use('*', async (c, next) => {
   const allowed = (c.env.ALLOWED_ORIGIN || '').split(',').map((o) => o.trim()).filter(Boolean);
+  // Self-serve tenants each get their own subdomain, so always trust the tenant
+  // apex and one level beneath it without having to enumerate centres in config.
+  const base = tenantBaseDomain(c.env);
+  allowed.push(`https://${base}`, `https://*.${base}`);
   const handler = cors({
     origin: (origin) => (origin && originAllowed(origin, allowed) ? origin : allowed[0] || '*'),
     credentials: true,

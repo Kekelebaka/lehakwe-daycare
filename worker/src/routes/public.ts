@@ -69,7 +69,7 @@ r.post('/public/signup', async (c) => {
   const now = Math.floor(Date.now() / 1000);
   const payload: JwtPayload = { sub: staffId, role: 'admin', email: d.owner_email, name: d.owner_name, centre_id: centreId, iat: now, exp: now + maxAge };
   const token = await signJwt(payload, c.env.JWT_SECRET);
-  c.header('Set-Cookie', sessionCookie(token, maxAge, cookieDomain(c.env)));
+  c.header('Set-Cookie', sessionCookie(token, maxAge, cookieDomain(c.env, c.req.header('host'))));
 
   return c.json({ ok: true, data: { centre_id: centreId, slug, subdomain: host, login_url: `https://${host}`, token, user: { id: staffId, name: d.owner_name, email: d.owner_email, role: 'admin', centre_id: centreId } } });
 });

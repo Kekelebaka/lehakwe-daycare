@@ -38,6 +38,8 @@ const r = new Hono<AppEnv>();
 
 const tenantBase = (env: any) => env.TENANT_BASE_DOMAIN || 'daycareos.ubuntutown.co.za';
 const siteUrl = (env: any) => env.PUBLIC_SITE_URL || 'https://daycareos.ubuntutown.co.za';
+// One sign-in origin for every self-serve tenant (see provisionCentre).
+const appUrl = (env: any) => (env.APP_BASE_URL || `https://app.${tenantBase(env)}`).replace(/\/$/, '');
 
 // ── GET /api/public/plans — what the public may buy ───────────────
 r.get('/public/plans', async (c) => {
@@ -128,7 +130,7 @@ r.get('/public/checkout/:reference', async (c) => {
       status: intent.status, // pending | paid | provisioned | failed
       centre_name: intent.centre_name,
       email: intent.owner_email,
-      login_url: intent.slug ? `https://${intent.slug}.${tenantBase(c.env)}` : null,
+      login_url: intent.status === 'provisioned' ? appUrl(c.env) : null,
     },
   });
 });
@@ -211,7 +213,7 @@ r.post('/public/paystack/webhook', async (c) => {
         amount: formatZar(payment.amount_cents),
         reference,
         paidUntil,
-        loginUrl: `https://${centre.slug}.${tenantBase(c.env)}`,
+        loginUrl: appUrl(c.env),
       });
     }
     return c.json({ ok: true, data: { renewed: true } });
@@ -231,6 +233,7 @@ r.post('/public/paystack/webhook', async (c) => {
     province: intent.province || undefined,
     planCode: intent.plan_code,
     baseDomain: tenantBase(c.env),
+    appBaseUrl: appUrl(c.env),
     status: 'active',
     paidUntil,
     coordinatorId: intent.coordinator_id || null,
@@ -297,7 +300,7 @@ r.post('/public/setup-token', async (c) => {
     centre_id: row.centre_id, iat: now, exp: now + maxAge,
   };
   const jwt = await signJwt(payload, c.env.JWT_SECRET);
-  c.header('Set-Cookie', sessionCookie(jwt, maxAge, cookieDomain(c.env)));
+  c.header('Set-Cookie', sessionCookie(jwt, maxAge, cookieDomain(c.env, c.req.header('host'))));
 
   return c.json({
     ok: true,
@@ -355,7 +358,7 @@ r.post('/billing/checkout', async (c) => {
      VALUES (?, ?, 'paystack', ?, ?, ?, ?, 'pending', ?)`,
   ).bind(`pay-${crypto.randomUUID()}`, centreId, reference, plan.plan_code, plan.price_cents, plan.currency, email).run();
 
-  const host = centre.slug ? `https://${centre.slug}.${tenantBase(c.env)}` : siteUrl(c.env);
+  const host = appUrl(c.env);
   const init = await paystackInitialize(c.env, {
     email,
     amountCents: plan.price_cents,

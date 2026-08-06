@@ -89,13 +89,13 @@ r.post('/parent/verify-otp', async (c) => {
   const now = Math.floor(Date.now() / 1000);
   const payload: JwtPayload = { sub: parent.parent_id, role: 'parent', email: parent.email || '', name: parent.full_name || 'Parent', centre_id: parent.centre_id || row.centre_id || DEFAULT_CENTRE_ID, iat: now, exp: now + maxAge };
   const token = await signJwt(payload, c.env.JWT_SECRET);
-  c.header('Set-Cookie', parentSessionCookie(token, maxAge, cookieDomain(c.env)));
+  c.header('Set-Cookie', parentSessionCookie(token, maxAge, cookieDomain(c.env, c.req.header('host'))));
   return c.json({ ok: true, data: { parent: { id: parent.parent_id, name: parent.full_name } } });
 });
 
 // POST /api/parent/logout (public) — clear the parent cookie.
 r.post('/parent/logout', (c) => {
-  c.header('Set-Cookie', clearedParentCookie(cookieDomain(c.env)));
+  c.header('Set-Cookie', clearedParentCookie(cookieDomain(c.env, c.req.header('host'))));
   return c.json({ ok: true, data: { loggedOut: true } });
 });
 

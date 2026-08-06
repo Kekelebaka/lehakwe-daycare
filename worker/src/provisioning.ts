@@ -107,6 +107,8 @@ export interface ProvisionInput {
   planCode: string;
   /** Tenant apex, e.g. "daycareos.ubuntutown.co.za". */
   baseDomain: string;
+  /** Canonical app origin all tenants sign in at, e.g. "https://app.daycareos.ubuntutown.co.za". */
+  appBaseUrl?: string;
   status?: 'trialing' | 'active';
   paidUntil?: string | null;
   trialEndsAt?: string | null;
@@ -184,5 +186,11 @@ export async function provisionCentre(db: D1Database, input: ProvisionInput): Pr
       .run();
   }
 
-  return { centreId, staffId, slug, host, loginUrl: `https://${host}` };
+  // Every tenant signs in at ONE app origin. Cloudflare Pages cannot serve a
+  // wildcard custom domain, and per-centre hostnames would each need their own
+  // certificate to be issued before the buyer's emailed link worked. A single
+  // host is instant, standard SaaS, and has no cert race. The per-centre
+  // subdomain stays registered in centre_domains for future vanity URLs.
+  const appBase = (input.appBaseUrl || `https://app.${input.baseDomain}`).replace(/\/$/, '');
+  return { centreId, staffId, slug, host, loginUrl: appBase };
 }

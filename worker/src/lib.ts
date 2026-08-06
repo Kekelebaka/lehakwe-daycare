@@ -4,8 +4,29 @@ import type { Env } from './env';
 // ── Session cookie ───────────────────────────────────────────────
 export const SESSION_COOKIE = 'lehakwe_session';
 export const DEFAULT_COOKIE_DOMAIN = '.lehakwedaycare.co.za';
-// Per-instance cookie domain — the demo/tenant workers set COOKIE_DOMAIN; defaults to Lehakwe.
-export function cookieDomain(env: { COOKIE_DOMAIN?: string }): string {
+/** Apex under which self-serve tenants live (one DNS label per centre). */
+export function tenantBaseDomain(env: { TENANT_BASE_DOMAIN?: string }): string {
+  return env.TENANT_BASE_DOMAIN || 'daycareos.ubuntutown.co.za';
+}
+
+/**
+ * Phase 5: the session cookie domain is resolved PER REQUEST.
+ *
+ * One worker now answers on two apexes:
+ *   api.lehakwedaycare.co.za        -> Lehakwe's own app   -> .lehakwedaycare.co.za
+ *   api.daycareos.ubuntutown.co.za  -> pooled SaaS tenants -> .daycareos.ubuntutown.co.za
+ *
+ * Deriving the domain from the request Host keeps the session cookie
+ * FIRST-PARTY on both, which matters because Safari/ITP drops third-party
+ * cookies outright. Omit `host` and we fall back to the configured default,
+ * so every existing call site behaves exactly as before.
+ */
+export function cookieDomain(env: { COOKIE_DOMAIN?: string; TENANT_BASE_DOMAIN?: string }, host?: string): string {
+  if (host) {
+    const h = host.toLowerCase().split(':')[0].replace(/\.$/, '');
+    const base = tenantBaseDomain(env).toLowerCase();
+    if (h === base || h.endsWith('.' + base)) return '.' + base;
+  }
   return env.COOKIE_DOMAIN || DEFAULT_COOKIE_DOMAIN;
 }
 

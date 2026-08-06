@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { evaluateAccess, verifyPaystackSignature, formatZar, addPeriod, newReference } from './billing';
+import { cookieDomain } from './lib';
 import { originAllowed } from './index';
 
 const iso = (msFromNow: number) => new Date(Date.now() + msFromNow).toISOString();
@@ -125,5 +126,39 @@ describe('money + period helpers', () => {
   it('mints unique references', () => {
     const refs = new Set(Array.from({ length: 200 }, () => newReference()));
     expect(refs.size).toBe(200);
+  });
+});
+
+describe('cookieDomain — per-request, first-party on both apexes', () => {
+  const env = {} as any; // no COOKIE_DOMAIN set: production Lehakwe config
+
+  it('keeps Lehakwe on its own apex (unchanged behaviour)', () => {
+    expect(cookieDomain(env, 'api.lehakwedaycare.co.za')).toBe('.lehakwedaycare.co.za');
+  });
+
+  it('scopes tenant traffic to the tenant apex', () => {
+    expect(cookieDomain(env, 'api.daycareos.ubuntutown.co.za')).toBe('.daycareos.ubuntutown.co.za');
+    expect(cookieDomain(env, 'daycareos.ubuntutown.co.za')).toBe('.daycareos.ubuntutown.co.za');
+    expect(cookieDomain(env, 'little-stars.daycareos.ubuntutown.co.za')).toBe('.daycareos.ubuntutown.co.za');
+  });
+
+  it('ignores port and trailing dot', () => {
+    expect(cookieDomain(env, 'api.daycareos.ubuntutown.co.za:443')).toBe('.daycareos.ubuntutown.co.za');
+    expect(cookieDomain(env, 'api.daycareos.ubuntutown.co.za.')).toBe('.daycareos.ubuntutown.co.za');
+  });
+
+  it('is not fooled by a look-alike suffix domain', () => {
+    expect(cookieDomain(env, 'api.daycareos.ubuntutown.co.za.evil.com')).toBe('.lehakwedaycare.co.za');
+    expect(cookieDomain(env, 'notdaycareos.ubuntutown.co.za')).toBe('.lehakwedaycare.co.za');
+  });
+
+  it('falls back to the configured default when no host is given', () => {
+    expect(cookieDomain(env)).toBe('.lehakwedaycare.co.za');
+    expect(cookieDomain({ COOKIE_DOMAIN: '.ubuntutown.co.za' } as any)).toBe('.ubuntutown.co.za');
+  });
+
+  it('honours an explicit COOKIE_DOMAIN for non-tenant hosts (demo instance)', () => {
+    const demo = { COOKIE_DOMAIN: '.ubuntutown.co.za' } as any;
+    expect(cookieDomain(demo, 'demo-api.example.org')).toBe('.ubuntutown.co.za');
   });
 });
