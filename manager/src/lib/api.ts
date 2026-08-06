@@ -91,6 +91,51 @@ export async function setPassword(newPassword: string, currentPassword?: string)
   if (!json.ok) throw new Error(json.error || 'Could not update password.');
 }
 
+// ── Phase 6: Ubuntu Town coordinator console ──────────────────
+// Sign-in goes directly to Supabase (their Ubuntu Town account); we never see
+// the password. The returned access token is exchanged for a coordinator
+// session, which our API only issues if they are a registered coordinator.
+const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || '';
+const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) || '';
+
+export async function supabaseSignIn(email: string, password: string): Promise<string> {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error('Ubuntu Town sign-in is not configured yet. Please contact your administrator.');
+  }
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY },
+    body: JSON.stringify({ email, password }),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.access_token) {
+    throw new Error(json.error_description || json.msg || 'Those Ubuntu Town details were not accepted.');
+  }
+  return json.access_token as string;
+}
+
+async function coordFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...((options?.headers as Record<string, string>) || {}) },
+  });
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Request failed');
+  return json.data;
+}
+
+export const coordinatorSession = (accessToken: string) =>
+  coordFetch<any>('/coordinator/session', { method: 'POST', body: JSON.stringify({ access_token: accessToken }) });
+export const coordinatorMe = () => coordFetch<any>('/coordinator/me');
+export const coordinatorCentres = () => coordFetch<any>('/coordinator/centres');
+export const coordinatorCreateCentre = (data: any) =>
+  coordFetch<any>('/coordinator/centres', { method: 'POST', body: JSON.stringify(data) });
+export const coordinatorActAs = (centreId: string) =>
+  coordFetch<any>(`/coordinator/act-as/${centreId}`, { method: 'POST' });
+export const coordinatorLogout = () =>
+  coordFetch<any>('/coordinator/logout', { method: 'POST' }).catch(() => null);
+
 export async function logout(): Promise<void> {
   try {
     await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' });

@@ -53,6 +53,17 @@ export function clearedCookie(domain: string = DEFAULT_COOKIE_DOMAIN): string {
 }
 
 // Parent session cookie (separate name so parent + staff sessions never collide).
+// ── Coordinator session (Ubuntu Town / Supabase SSO) ─────────────
+// Deliberately a DIFFERENT cookie from the staff session: a coordinator who
+// steps into a centre to help must not lose their own identity while doing so.
+export const COORD_COOKIE = 'lehakwe_coord';
+export function coordCookie(token: string, maxAgeSeconds: number, domain: string = DEFAULT_COOKIE_DOMAIN): string {
+  return `${COORD_COOKIE}=${encodeURIComponent(token)}; Domain=${domain}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAgeSeconds}`;
+}
+export function clearedCoordCookie(domain: string = DEFAULT_COOKIE_DOMAIN): string {
+  return `${COORD_COOKIE}=; Domain=${domain}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
+}
+
 export const PARENT_COOKIE = 'lehakwe_parent';
 export function parentSessionCookie(token: string, maxAgeSeconds: number, domain: string = DEFAULT_COOKIE_DOMAIN): string {
   return [

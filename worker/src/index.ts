@@ -23,6 +23,7 @@ import messageRoutes from './routes/messages';
 import notificationRoutes from './routes/notifications';
 import fundingRoutes from './routes/funding';
 import billingRoutes from './routes/billing';
+import coordinatorRoutes from './routes/coordinator';
 import { evaluateAccess } from './billing';
 import { dispatchPending, resetStaleSending } from './notifications';
 
@@ -71,7 +72,7 @@ app.use('/api/*', async (c, next) => {
 app.use('/api/*', async (c, next) => {
   const path = c.req.path;
   const method = c.req.method;
-  const isPublic = path.startsWith('/api/public/') || path === '/api/health' || path.startsWith('/api/auth/') || path.startsWith('/api/parent/');
+  const isPublic = path.startsWith('/api/public/') || path === '/api/health' || path.startsWith('/api/auth/') || path.startsWith('/api/parent/') || path.startsWith('/api/coordinator/');
   c.set('identity', null);
   if (!isPublic) {
     const authHeader = c.req.header('Authorization') || '';
@@ -121,6 +122,7 @@ app.use('/api/*', async (c, next) => {
     path.startsWith('/api/auth/') ||
     path.startsWith('/api/parent/') ||
     path.startsWith('/api/billing/') ||
+    path.startsWith('/api/coordinator/') ||
     path === '/api/health' ||
     path === '/api/me';
   if (exempt) return next();
@@ -170,6 +172,7 @@ app.route('/api', messageRoutes);
 app.route('/api', notificationRoutes);
 app.route('/api', fundingRoutes);
 app.route('/api', billingRoutes);
+app.route('/api', coordinatorRoutes);
 
 app.notFound((c) => c.json({ ok: false, error: 'Endpoint not found' }, 404));
 app.onError((err, c) => {

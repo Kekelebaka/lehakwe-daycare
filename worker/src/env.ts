@@ -25,7 +25,7 @@ export interface Env {
   PUBLIC_SITE_URL?: string;     // marketing site origin (checkout return page)
   APP_BASE_URL?: string;        // single sign-in origin for all tenants
   BILLING_ENFORCED?: string;    // 'true' to hard-gate the API on subscription state
-  SUPABASE_URL?: string;        // Ubuntu Town Supabase project (coordinator SSO)
+  SUPABASE_URL?: string;        // Ubuntu Town Supabase project (coordinator SSO), e.g. https://afiokbhuxfdacbsipoqk.supabase.co
   SUPABASE_JWT_SECRET?: string; // secret: verifies coordinator Supabase access tokens
 }
 
