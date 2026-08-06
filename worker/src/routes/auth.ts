@@ -2,8 +2,8 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import type { AppEnv } from '../env';
 import { initDb } from '../db';
-import { signJwt, verifyPassword, type JwtPayload } from '../auth';
-import { sessionCookie, clearedCookie, cookieDomain, isRateLimited, bumpRateLimit, clearRateLimit, verifyTurnstile } from '../lib';
+import { signJwt, verifyJwt, verifyPassword, hashPassword, type JwtPayload } from '../auth';
+import { SESSION_COOKIE, getCookie, sessionCookie, clearedCookie, cookieDomain, isRateLimited, bumpRateLimit, clearRateLimit, verifyTurnstile } from '../lib';
 import { DEFAULT_CENTRE_ID, getCentreId } from '../tenant';
 
 const r = new Hono<AppEnv>();
@@ -56,6 +56,42 @@ r.post('/auth/login', async (c) => {
 r.post('/auth/logout', (c) => {
   c.header('Set-Cookie', clearedCookie(cookieDomain(c.env)));
   return c.json({ ok: true, data: { loggedOut: true } });
+});
+
+// POST /api/auth/set-password
+// Phase 5: a centre bought via Paystack is provisioned with an unguessable
+// random password and the owner arrives through a one-time emailed link. This
+// lets them choose a real password so they can sign in normally afterwards.
+// /api/auth/* bypasses the global auth middleware, so the session is verified
+// here explicitly. Possession of a valid session (proved by the emailed link,
+// or by an existing login) is the authorisation.
+r.post('/auth/set-password', async (c) => {
+  const token = getCookie(c.req.raw, SESSION_COOKIE) || (c.req.header('Authorization') || '').replace(/^Bearer /, '');
+  const identity = token ? await verifyJwt(token, c.env.JWT_SECRET) : null;
+  if (!identity) return c.json({ ok: false, error: 'Unauthorized' }, 401);
+
+  const body = await c.req.json<any>().catch(() => ({}));
+  const next = String(body?.new_password || '');
+  if (next.length < 8 || next.length > 200) {
+    return c.json({ ok: false, error: 'Choose a password of at least 8 characters.' }, 400);
+  }
+
+  const staff = await c.env.DB.prepare('SELECT staff_id, password_hash FROM staff WHERE staff_id = ? AND active = 1')
+    .bind(identity.sub).first<any>();
+  if (!staff) return c.json({ ok: false, error: 'Staff record not found' }, 404);
+
+  // If the caller knows their current password, require it to match (guards a
+  // hijacked session on an established account). Accounts created by the paid
+  // flow have a random secret nobody knows, so this is optional by design.
+  const current = String(body?.current_password || '');
+  if (current && !(await verifyPassword(current, staff.password_hash))) {
+    return c.json({ ok: false, error: 'Current password is incorrect.' }, 401);
+  }
+
+  await c.env.DB.prepare(`UPDATE staff SET password_hash = ?, updated_at = datetime('now') WHERE staff_id = ?`)
+    .bind(await hashPassword(next), identity.sub).run();
+
+  return c.json({ ok: true, data: { updated: true } });
 });
 
 // GET /api/me (protected)

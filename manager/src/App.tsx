@@ -28,6 +28,7 @@ import LeaveTracker from './pages/LeaveTracker';
 import WaitlistPage from './pages/WaitlistPage';
 import ParentDashboard from './pages/ParentDashboard';
 import Signup from './pages/Signup';
+import Welcome from './pages/Welcome';
 import SetupWizard from './pages/SetupWizard';
 import RoleSelector from './components/RoleSelector';
 import { Brand } from './components/ui';
@@ -492,6 +493,8 @@ function StaffApp() {
 export default function App() {
   const path = window.location.pathname;
   if (path === '/signup') return <Signup />;
+  // Paid signups arrive here from the emailed one-time link (pre-authentication).
+  if (path === '/welcome') return <Welcome />;
   if (path.startsWith('/parent/') || path === '/parent-login' || path.startsWith('/my')) {
     return (
       <BrowserRouter>
