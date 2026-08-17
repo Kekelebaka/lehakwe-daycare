@@ -6,7 +6,7 @@ import { initDb } from './db';
 import { parseIncomingEmail, buildAutoReply, buildReplyRaw } from './email-handler';
 import { verifyJwt } from './auth';
 import type { AppEnv, Env } from './env';
-import { SESSION_COOKIE, getCookie, requiresAdmin, isAdmin, tenantBaseDomain } from './lib';
+import { SESSION_COOKIE, getCookie, requiresAdmin, isAdmin, tenantBaseDomain, constraintMessage } from './lib';
 import { centreForHost, DEFAULT_CENTRE_ID } from './tenant';
 
 import authRoutes from './routes/auth';
@@ -177,6 +177,12 @@ app.route('/api', coordinatorRoutes);
 app.notFound((c) => c.json({ ok: false, error: 'Endpoint not found' }, 404));
 app.onError((err, c) => {
   console.error('API error:', err);
+  // A rejected value is the caller's problem, not a server fault. D1 reports
+  // CHECK / NOT NULL / UNIQUE violations as opaque errors that used to surface in
+  // the UI as a bare "Internal error", which told the user nothing about which
+  // field to fix. Translate those into a 400 naming the field.
+  const constraint = constraintMessage(err);
+  if (constraint) return c.json({ ok: false, error: constraint }, 400);
   return c.json({ ok: false, error: 'Internal error' }, 500);
 });
 
