@@ -102,6 +102,8 @@ export function requiresAdmin(method: string, path: string): boolean {
     [/^\/api\/payslips(\/.*)?$/, ['GET', 'POST', 'PUT', 'DELETE']],
     [/^\/api\/settings$/, ['PUT']],
     [/^\/api\/audit$/, ['GET']],
+    // Statutory reports carry payroll figures — admin only.
+    [/^\/api\/reports\/free-state\//, ['GET']],
     [/^\/api\/parents\/[^/]+$/, ['DELETE']],
     [/^\/api\/children\/[^/]+$/, ['DELETE']],
     [/^\/api\/documents\/[^/]+$/, ['DELETE']],

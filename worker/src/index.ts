@@ -24,6 +24,7 @@ import notificationRoutes from './routes/notifications';
 import fundingRoutes from './routes/funding';
 import billingRoutes from './routes/billing';
 import coordinatorRoutes from './routes/coordinator';
+import reportsFsRoutes from './routes/reports-fs';
 import { evaluateAccess } from './billing';
 import { dispatchPending, resetStaleSending } from './notifications';
 
@@ -173,6 +174,7 @@ app.route('/api', notificationRoutes);
 app.route('/api', fundingRoutes);
 app.route('/api', billingRoutes);
 app.route('/api', coordinatorRoutes);
+app.route('/api', reportsFsRoutes);
 
 app.notFound((c) => c.json({ ok: false, error: 'Endpoint not found' }, 404));
 app.onError((err, c) => {
