@@ -102,6 +102,8 @@ export function requiresAdmin(method: string, path: string): boolean {
     [/^\/api\/payslips(\/.*)?$/, ['GET', 'POST', 'PUT', 'DELETE']],
     [/^\/api\/settings$/, ['PUT']],
     [/^\/api\/audit$/, ['GET']],
+    // Statutory reports carry payroll figures — admin only.
+    [/^\/api\/reports\/free-state\//, ['GET']],
     [/^\/api\/parents\/[^/]+$/, ['DELETE']],
     [/^\/api\/children\/[^/]+$/, ['DELETE']],
     [/^\/api\/documents\/[^/]+$/, ['DELETE']],
@@ -200,4 +202,84 @@ export async function sendOtp(
   }
   console.warn('OTP SMS delivery not configured; code not delivered for', identifier);
   return false;
+}
+
+// ── Partial UPDATE builder ───────────────────────────────────────
+/**
+ * Blank means "not captured". Trim strings and collapse empty ones to null.
+ *
+ * HTML controls submit '' for an untouched field — an unselected `<select>`
+ * yields '' rather than undefined — and '' is a REAL value as far as SQLite is
+ * concerned. Writing it into a constrained column trips the CHECK, e.g.
+ * `CHECK (gender IN ('male','female'))`, which D1 raises as an opaque error.
+ */
+export function blankToNull(v: unknown): unknown {
+  if (v === undefined || v === null) return null;
+  if (typeof v === 'string') {
+    const trimmed = v.trim();
+    return trimmed === '' ? null : trimmed;
+  }
+  return v;
+}
+
+export type ColumnKind = 'text' | 'number' | 'bool';
+export type ColumnSpec = { kind: ColumnKind; notNull?: boolean };
+export type ColumnMap = Record<string, ColumnSpec>;
+
+/**
+ * Build the SET clause of a partial UPDATE from the keys actually present in a
+ * request body.
+ *
+ * Replaces the `SET col = COALESCE(?, col)` idiom, which had two flaws:
+ *   1. It can only ever express "leave unchanged", so a field the user cleared
+ *      in the form could never be cleared in the database.
+ *   2. Callers bound values with `?? null`, which passes '' straight through —
+ *      so a blank select wrote '' into a CHECK-constrained column and the whole
+ *      request died as a 500 "Internal error".
+ *
+ * Semantics here are explicit:
+ *   - key absent from the body        -> column untouched
+ *   - key present with a value        -> column set to that value
+ *   - key present but blank           -> column set to NULL (a real clear)
+ *   - key present, blank, NOT NULL    -> column untouched (never provoke a
+ *                                        NOT NULL violation from an empty form)
+ *
+ * Column names come only from `columns`, never from the request body, so the
+ * generated SQL is not attacker-influenced.
+ */
+export function buildUpdate(columns: ColumnMap, body: Record<string, unknown>): { sets: string[]; values: unknown[] } {
+  const sets: string[] = [];
+  const values: unknown[] = [];
+  for (const [column, spec] of Object.entries(columns)) {
+    if (!Object.prototype.hasOwnProperty.call(body, column)) continue;
+    let value = blankToNull(body[column]);
+    if (value !== null && spec.kind === 'number') {
+      const n = Number(value);
+      value = Number.isFinite(n) ? n : null;
+    }
+    if (value !== null && spec.kind === 'bool') value = value ? 1 : 0;
+    if (value === null && spec.notNull) continue;
+    sets.push(`${column} = ?`);
+    values.push(value);
+  }
+  return { sets, values };
+}
+
+/**
+ * Turn an opaque D1 constraint failure into something the person filling in the
+ * form can act on. Returns null when the error is not a constraint violation.
+ */
+export function constraintMessage(err: unknown): string | null {
+  const msg = String((err as { message?: string })?.message ?? err ?? '');
+  const check = msg.match(/CHECK constraint failed:\s*(\w+)\s+IN\s*\(([^)]*)\)/i);
+  if (check) {
+    const allowed = check[2].replace(/'/g, '').split(',').map((s) => s.trim()).join(', ');
+    return `"${check[1]}" must be one of: ${allowed}.`;
+  }
+  const notNull = msg.match(/NOT NULL constraint failed:\s*\w+\.(\w+)/i);
+  if (notNull) return `"${notNull[1]}" is required.`;
+  const unique = msg.match(/UNIQUE constraint failed:\s*\w+\.(\w+)/i);
+  if (unique) return `That "${unique[1]}" is already in use.`;
+  if (/CHECK constraint failed/i.test(msg)) return 'One of the values submitted is not allowed.';
+  return null;
 }
