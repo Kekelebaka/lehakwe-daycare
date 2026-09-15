@@ -43,8 +43,8 @@ r.post('/reset-password', async (c) => {
 
   const centre = getCentreId(c);
   const staff = await c.env.DB.prepare(
-    'SELECT staff_id, full_name, email FROM staff WHERE email = ? AND centre_id = ? AND active = 1',
-  ).bind(email.toLowerCase(), centre).first<any>();
+    'SELECT staff_id, full_name, email FROM staff WHERE LOWER(email) = LOWER(?) AND centre_id = ? AND active = 1',
+  ).bind(email, centre).first<any>();
 
   if (!staff) return c.json({ ok: false, error: 'No active staff member found with that email.' }, 404);
 
