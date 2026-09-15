@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import type { AppEnv } from '../env';
 import { initDb } from '../db';
 import { getCentreId } from '../tenant';
+import { hashPassword } from '../auth';
 
 const r = new Hono<AppEnv>();
 const uid = (c: any) => c.get('identity')?.sub || 'admin';
@@ -24,6 +26,39 @@ r.put('/settings', async (c) => {
   if (batch.length) await c.env.DB.batch(batch);
   await db.insertAudit({ id: db.uuid(), user_id: uid(c), action: 'updated', module_name: 'settings', record_id: 'bulk', metadata: JSON.stringify({ keys: Object.keys(settings) }) });
   return c.json({ ok: true });
+});
+
+// ── ADMIN PASSWORD RESET ────────────────────────────────────────
+// Allows an admin/owner to reset any staff member's password by email.
+// POST /api/admin/reset-password { email, new_password }
+const ResetPasswordBody = z.object({
+  email: z.string().email(),
+  new_password: z.string().min(8).max(200),
+});
+
+r.post('/reset-password', async (c) => {
+  const parsed = ResetPasswordBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ ok: false, error: 'Valid email and new_password (min 8 chars) required.' }, 400);
+  const { email, new_password } = parsed.data;
+
+  const centre = getCentreId(c);
+  const staff = await c.env.DB.prepare(
+    'SELECT staff_id, full_name, email FROM staff WHERE email = ? AND centre_id = ? AND active = 1',
+  ).bind(email.toLowerCase(), centre).first<any>();
+
+  if (!staff) return c.json({ ok: false, error: 'No active staff member found with that email.' }, 404);
+
+  const pwHash = await hashPassword(new_password);
+  await c.env.DB.prepare(`UPDATE staff SET password_hash = ?, updated_at = datetime('now') WHERE staff_id = ?`)
+    .bind(pwHash, staff.staff_id).run();
+
+  const db = initDb(c.env.DB, centre);
+  await db.insertAudit({
+    id: db.uuid(), user_id: uid(c), action: 'password_reset', module_name: 'staff',
+    record_id: staff.staff_id, metadata: JSON.stringify({ target_email: staff.email }),
+  });
+
+  return c.json({ ok: true, data: { staff_id: staff.staff_id, name: staff.full_name, email: staff.email } });
 });
 
 // ── COMPLIANCE ──────────────────────────────────────────────────

@@ -114,6 +114,7 @@ export function requiresAdmin(method: string, path: string): boolean {
     [/^\/api\/notifications\/dispatch$/, ['POST']],
     [/^\/api\/centre$/, ['PUT']],
     [/^\/api\/centre\/setup-complete$/, ['POST']],
+    [/^\/api\/admin\/reset-password$/, ['POST']],
   ];
   for (const [re, methods] of rules) if (re.test(path) && methods.includes(m)) return true;
   return false;
