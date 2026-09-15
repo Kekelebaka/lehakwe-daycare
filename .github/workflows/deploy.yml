@@ -40,6 +40,11 @@ jobs:
         continue-on-error: true
         run: npx wrangler d1 execute lehakwe-db --remote --file=../db/migrations/008_phase0_hardening.sql --yes
 
+      - name: D1 migration 019 (chief of staff)
+        working-directory: worker
+        continue-on-error: true
+        run: npx wrangler d1 execute lehakwe-db --remote --file=../db/migrations/019_chief_of_staff.sql --yes
+
       - name: Deploy worker
         working-directory: worker
         run: npx wrangler deploy
